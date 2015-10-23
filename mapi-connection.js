@@ -1,0 +1,517 @@
+'use strict';
+
+var net = require('net');
+var crypto = require('crypto');
+var Q = require('q');
+
+var utils = require('./utils');
+
+function __sha512(str) {
+    return crypto.createHash('sha512').update(str).digest('hex');
+}
+
+function _hdrline(line) {
+    return line.substr(2, line.indexOf('#')-3).split(',\t');
+}
+
+
+module.exports = function MapiConnection(options) {
+    var self = this;
+
+    // private vars and functions
+    var _socket = null;
+    var _state = 'disconnected';
+    var _connectDeferred = null;
+    var _messageQueueDisconnected = [];
+    var _messageQueue = [];
+    var _msgLoopRunning = false;
+    var _closeDeferred = null;
+    var _curMessage = null;
+    var _mapiBlockSize = 8192;
+    var _readLeftOver = 0;
+    var _readFinal = false;
+    var _readStr = '';
+
+    function _setState(state) {
+        if(options.debug) {
+            options.debugFn('info', 'Setting state to ' + state + '..');
+        }
+        _state = state;
+    }
+
+    function _nextMessage() {
+        if (!_messageQueue.length) {
+            _msgLoopRunning = false;
+            if (_closeDeferred) {
+                self.destroy();
+                _closeDeferred && _closeDeferred.resolve();
+            }
+            return;
+        }
+
+        if(_state == 'disconnected') return; // will be called again after reconnect
+
+        _sendMessage(_messageQueue.shift());
+    }
+
+    /**
+     * Send a packaged message
+     *
+     * @param message An object containing a message property and a deferred property
+     * @private
+     */
+    function _sendMessage(message) {
+        if (options.debugMapi) {
+            options.debugMapiFn('TX', message.message);
+        }
+
+        _curMessage = message;
+        var buf = new Buffer(message.message, 'utf8');
+        var final = 0;
+        while (final == 0) {
+            var bs = Math.min(buf.length, _mapiBlockSize - 2);
+            var sendbuf = buf.slice(0, bs);
+            buf = buf.slice(bs);
+            if (buf.length == 0) {
+                final = 1;
+            }
+
+            if (options.debug) {
+                options.debugFn('info', 'Writing ' + bs + ' bytes, final=' + final);
+            }
+
+            var hdrbuf = new Buffer(2);
+            hdrbuf.writeInt16LE((bs << 1) | final, 0);
+            _socket.write(Buffer.concat([hdrbuf, sendbuf]));
+        }
+    }
+
+    function _handleData(data) {
+        /* we need to read a header obviously */
+        if (_readLeftOver == 0) {
+            var hdr = data.readUInt16LE(0);
+            _readLeftOver = (hdr >> 1);
+            _readFinal = (hdr & 1) == 1;
+            data = data.slice(2);
+        }
+        if (options.debug) {
+            options.debugFn('info', 'Reading ' + _readLeftOver + ' bytes, final=' + _readFinal);
+        }
+
+        /* what is in the buffer is not necessary the entire block */
+        var read_cnt = Math.min(data.length, _readLeftOver);
+        _readStr = _readStr + data.toString('utf8', 0, read_cnt);
+        _readLeftOver -= read_cnt;
+
+        /* if there is something left to read, we will be called again */
+        if (_readLeftOver > 0) {
+            return;
+        }
+
+        /* pass on reassembled messages */
+        if (_readLeftOver == 0 && _readFinal) {
+            _handleResponse(_readStr);
+            _readStr = '';
+        }
+
+        /* also, the buffer might contain more blocks or parts thereof */
+        if (data.length > read_cnt) {
+            var leftover = new Buffer(data.length - read_cnt);
+            data.copy(leftover, 0, read_cnt, data.length);
+            _handleData(leftover);
+        }
+    }
+
+    /**
+     * Whenever a full response is received from the server, this response is passed to
+     * this function. The main idea of this function is that it sets the object state to
+     * ready as soon as the server let us know that the authentication succeeded.
+     * Basically, the first time this function is called, it will receive a challenge from the server.
+     * It will respond with authentication details. This *might* happen more than once, until at some point
+     * we receive either an authentication error or an empty line (prompt). This empty line indicates
+     * all is well, and state will be set to ready then.
+     *
+     * @param response The response received from the server
+     * @private
+     */
+    function _handleResponse(response) {
+        if (options.debugMapi) {
+            utils.debugMapi('RX', response);
+        }
+
+        /* prompt, good */
+        if (response == '') {
+            _setState('ready');
+            return _nextMessage();
+        }
+
+        /* monetdbd redirect, ignore. We will get another challenge soon */
+        if (response.charAt(0) == '^') {
+            return;
+        }
+
+        if (_state == 'connected') {
+            /* error message during authentication? */
+            if (response.charAt(0) == '!') {
+                response = 'Error: ' + response.substring(1, response.length - 1);
+                return _curMessage.deferred.reject(response);
+            }
+
+            // means we get the challenge from the server
+            var authch = response.split(':');
+            var salt   = authch[0];
+            var dbname = authch[1]; // Contains 'merovingian' if monetdbd is used. We do not use this value.
+
+            /* In theory, the server tells us which hashes it likes.
+             In practice, we know it always likes sha512 , so... */
+            var pwhash = __sha512(__sha512(options.password) + salt);
+            var counterResponse = 'LIT:' + options.user + ':{SHA512}' + pwhash + ':' +
+                options.language + ':' + options.dbname + ':';
+            _sendMessage({ message: counterResponse, deferred: Q.defer().promise});
+            return;
+        }
+
+        /* error message */
+        if (response.charAt(0) == '!') {
+            _curMessage.deferred.reject(response.substring(1, response.length - 1));
+        }
+
+        /* query result */
+        else if (response.charAt(0) == '&') {
+            _curMessage.deferred.resolve(_parseResponse(response));
+        }
+
+        else {
+            _curMessage.deferred.resolve({});
+        }
+
+        _nextMessage();
+    }
+
+    function _parseResponse(msg) {
+        var lines = msg.split('\n');
+        var resp = {};
+        var tpe = lines[0].charAt(1);
+
+        /* table result, we only like Q_TABLE and Q_PREPARE for now */
+        if (tpe == 1 || tpe == 5) {
+            var hdrf = lines[0].split(" ");
+
+            resp.type='table';
+            resp.queryid   = parseInt(hdrf[1]);
+            resp.rows = parseInt(hdrf[2]);
+            resp.cols = parseInt(hdrf[3]);
+
+            var table_names  = _hdrline(lines[1]);
+            var column_names = _hdrline(lines[2]);
+            var column_types = _hdrline(lines[3]);
+            var type_lengths = _hdrline(lines[4]);
+
+            resp.structure = [];
+            resp.col = {};
+            for (var i = 0; i < table_names.length; i++) {
+                var colinfo = {
+                    table : table_names[i],
+                    column : column_names[i],
+                    type : column_types[i],
+                    typelen : parseInt(type_lengths[i]),
+                    index : i
+                };
+                resp.col[colinfo.column] = colinfo.index;
+                resp.structure.push(colinfo);
+            }
+            resp.data = _parseTuples(column_types, lines.slice(5, lines.length-1));
+        }
+        return resp;
+    }
+
+    function _parseTuples(types, lines) {
+        var state = 'INCRAP';
+        var resultarr = [];
+        lines.forEach(function(line) {
+            var resultline = [];
+            var cCol = 0;
+            var curtok = '';
+            /* mostly adapted from clients/R/MonetDB.R/src/mapisplit.c */
+            for (var curPos = 2; curPos < line.length - 1; curPos++) {
+                var chr = line.charAt(curPos);
+                switch (state) {
+                    case 'INCRAP':
+                        if (chr != '\t' && chr != ',' && chr != ' ') {
+                            if (chr == '"') {
+                                state = 'INQUOTES';
+                            } else {
+                                state = 'INTOKEN';
+                                curtok += chr;
+                            }
+                        }
+                        break;
+                    case 'INTOKEN':
+                        if (chr == ',' || curPos == line.length - 2) {
+                            if (curtok == 'NULL') {
+                                resultline.push(undefined);
+
+                            } else {
+                                switch(types[cCol]) {
+                                    case 'boolean':
+                                        resultline.push(curtok == 'true');
+                                        break;
+                                    case 'tinyint':
+                                    case 'smallint':
+                                    case 'int':
+                                    case 'wrd':
+                                    case 'bigint':
+                                        resultline.push(parseInt(curtok));
+                                        break
+                                    case 'real':
+                                    case 'double':
+                                    case 'decimal':
+                                        resultline.push(parseFloat(curtok));
+                                        break
+                                    default:
+                                        // we need to unescape double quotes
+                                        //valPtr = valPtr.replace(/[^\\]\\"/g, '"');
+                                        resultline.push(curtok);
+                                        break;
+                                }
+                            }
+                            cCol++;
+                            state = 'INCRAP';
+                            curtok = '';
+                        } else {
+                            curtok += chr;
+                        }
+                        break;
+                    case 'ESCAPED':
+                        state = 'INQUOTES';
+                        switch(chr) {
+                            case 't': curtok += '\t'; break;
+                            case 'n': curtok += '\n'; break;
+                            case 'r': curtok += '\r'; break;
+                            default: curtok += chr;
+                        }
+                        break;
+                    case 'INQUOTES':
+                        if (chr == '"') {
+                            state = 'INTOKEN';
+                            break;
+                        }
+                        if (chr == '\\') {
+                            state = 'ESCAPED';
+                            break;
+                        }
+                        curtok += chr;
+                        break;
+                }
+            }
+            resultarr.push(resultline);
+        });
+        return resultarr;
+    }
+
+    function _reconnect(attempt) {
+        if(attempt > options.maxReconnects) {
+            // reached limit
+            if (options.debug) {
+                options.debugFn('info', 'Attempted to reconnect for ' + (attempt-1) + ' times.. We are giving up now.');
+            }
+            return self.destroy('Failed to connect to MonetDB server');
+        }
+
+        // not reached limit: attempt a reconnect
+
+        if(!_messageQueueDisconnected) {
+            // This is the first attempt to reconnect, meaning we need to clear the message queue
+
+            // put cur message (unfinished) back to message queue
+            if(_curMessage) {
+                _messageQueue.unshift(_curMessage);
+                _curMessage = null;
+            }
+
+            // transfer messages in queue to another variable
+            _messageQueueDisconnected = _messageQueue;
+            _messageQueue = [];
+        }
+
+        // always destroy socket, since if reconnecting, we always want to remove listeners and stop all traffic
+        _destroySocket();
+
+
+        if(options.debug) {
+            options.debugFn('warn', 'Reconnect attempt ' + attempt + '/' + options.maxReconnects + ' in ' + (options.reconnectTimeout/1000) + ' sec..');
+        }
+        setTimeout(function() {
+            self.connect().then(function() {
+                if(options.debug) {
+                    options.debugFn('info', 'Reconnection succeeded.');
+                }
+            }, function(err) {
+                if(options.debug) {
+                    options.debugFn('error', 'Could not connect to MonetDB: ' + err);
+                }
+                _messageQueue = [];
+                _reconnect(attempt+1);
+            });
+        }, options.reconnectTimeout);
+    }
+
+    function _onData(data) {
+        _handleData(data);
+    }
+    function _onError(err) {
+        if(_state == 'disconnected') {
+            // there must have been a connection error, since the error handler was called
+            // before the net.connect callback
+            _connectDeferred.reject(err);
+        }
+        if(options.debug) {
+            options.debugFn('warn', 'Socket error occurred: ' + err.toString());
+        }
+    }
+    function _onClose(hadError) {
+        _setState('disconnected');
+        if(hadError) {
+            // if we had an error, see if we can reconnect
+            _reconnect(1);
+        }
+    }
+
+    function _destroySocket() {
+        if(_socket) {
+            _socket.removeListener('data', _onData);
+            _socket.removeListener('error', _onError);
+            _socket.removeListener('close', _onClose);
+            _socket.destroy();
+        }
+        _socket = null;
+    }
+
+    function _resumeMsgLoop() {
+        /* if message loop is not running, we need to start it again */
+        if (!_msgLoopRunning) {
+            _msgLoopRunning = true;
+            _nextMessage();
+        }
+    }
+
+    function _request(message, queue) {
+        var defer = Q.defer();
+        if(_state == 'destroyed') defer.reject('Cannot accept request: connection was destroyed.');
+        else {
+            queue.push({
+                message: message,
+                deferred: defer
+            });
+            _resumeMsgLoop();
+        }
+        if(options.debugRequests) {
+            defer.promise.then(function(res) {
+                options.debugRequestFn(message, null, res);
+            }, function(err) {
+                options.debugRequestFn(message, err, null);
+            });
+        }
+        return defer.promise;
+    }
+
+
+    // public vars and functions
+
+    /**
+     * Get the current state of the connection. Possible states:
+     * - disconnected: There is currently no open connection, either because it has never
+     *                 been opened yet, or because a reconnect is going on
+     * - connected:    There is an open connection to the server, but authentication has not
+     *                 finished yet.
+     * - ready:        There is an open connection to the server, and we have successfully
+     *                 authenticated. The connection is ready to accept queries.
+     * - destroyed:    The connection is destroyed, either because it was explicitly destroyed
+     *                 by a call to {destroy}, or because of a failure to keep the connection open.
+     * @returns {string}
+     */
+    self.getState = function() {
+        return _state;
+    };
+
+    self.connect = function() {
+        _connectDeferred = Q.defer();
+        if(_state == 'destroyed') _connectDeferred.reject('Failed to connect: This connection was destroyed.');
+        else if(_state != 'disconnected') _connectDeferred.reject('Failed to connect: This connection is still open..');
+        else {
+            // set up the connection
+
+            // We set msgLoopRunning to true, so any requests we do will not start the message loop.
+            // We wait for an initial message from the server, which will trigger authentication,
+            // and eventually trigger the nextMessage method.
+            _msgLoopRunning = true;
+            _socket = net.connect(options.port, options.host, function () {
+                // Connected to the socket! We can now
+                _setState('connected');
+
+                /* some setup */
+                _request('Xreply_size -1', _messageQueue);
+                _request('Xauto_commit 1', _messageQueue);
+
+                // try to execute a simple query, and resolve/reject connection promise
+                return _request(utils.packQuery('SELECT 42'), _messageQueue).then(function () {
+                    // At this point, the message queue should be empty, since 'select 42' was the
+                    // last request placed by the connect method, and that one has been successfully
+                    // completed.
+                    // Requests that have arrived in the meantime are stored in messageQueueDisconnected.
+                    // Swap these queues, and resume the msg loop
+                    _messageQueue = _messageQueueDisconnected;
+                    _messageQueueDisconnected = null;
+
+                    _resumeMsgLoop();
+                    _connectDeferred.resolve();
+                }, function (err) {
+                    if (options.debug) {
+                        options.debugFn('error', 'Error on executing test query "SELECT 42": ' + err);
+                    }
+                    _connectDeferred.reject('Could not connect to MonetDB');
+                }).done();
+            });
+            _socket.on('data', _onData);
+            _socket.on('error', _onError);
+            _socket.on('close', _onClose);
+        }
+
+        return _connectDeferred.promise;
+    };
+
+    self.request = function(message) {
+        return _request(message, _state == 'disconnected' ? _messageQueueDisconnected : _messageQueue);
+    };
+
+    self.close = function() {
+        _closeDeferred = Q.defer();
+        if(_state == 'destroyed') _closeDeferred.resolve();
+        else {
+            if(!_msgLoopRunning) {
+                self.destroy();
+                _closeDeferred && _closeDeferred.resolve();
+            }
+        }
+        return _closeDeferred.promise;
+    };
+
+    /**
+     *
+     * @param msg message that will be passed to the error handlers of the pending queries.
+     */
+    self.destroy = function(msg) {
+        _destroySocket();
+        _messageQueue.forEach(function(message) {
+            message.deferred.reject(msg ? msg : 'Connection destroyed');
+        });
+        _messageQueueDisconnected && _messageQueueDisconnected.forEach(function(message) {
+            message.deferred.reject(msg ? msg : 'Connection destroyed');
+        });
+        _messageQueue = [];
+        _messageQueueDisconnected = [];
+
+        _setState('destroyed');
+
+    };
+};

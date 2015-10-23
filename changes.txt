@@ -1,0 +1,14 @@
+- q is now always included
+
+- environment is not automatically added, but a shortcut function exists to retrieve it
+
+- mocha testcases
+
+- No more exposure of system vars
+
+TESTCASES
+- Test passing in options
+- Fetching environment
+- Failing connection (reconnect)
+- Failing connection in between prepared statement and exec fn
+- Delayed connect (ie putting queries in the queue before calling connect)
