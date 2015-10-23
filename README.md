@@ -5,3 +5,6 @@ Over here we are working on a renewed version of the MonetDB NodeJS connector. S
 - Reconnect logic will be added, which will be configurable
 - Multiple layers of options can be used (global options, connection specific, and query specific options)
 - Extended result objects will become available upon request
+- A thorough test case will be added
+
+## Note: The current code is not production ready yet. For now, please stick with the 0.\* version
