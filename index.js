@@ -212,7 +212,7 @@ module.exports = function(d) {
                 }
 
                 function releasefun() {
-                    return self.mapiConnection.request('Xrelease ' + result.queryid);
+                    self.mapiConnection.request('Xrelease ' + result.queryid);
                 }
 
                 return {'prepare': result, 'exec': execfun, 'release': releasefun};

@@ -51,7 +51,8 @@ module.exports = function MapiConnection(options) {
 
         if(_state == 'disconnected') return; // will be called again after reconnect
 
-        _sendMessage(_messageQueue.shift());
+        _curMessage = _messageQueue.shift();
+        _sendMessage(_curMessage.message);
     }
 
     /**
@@ -62,11 +63,10 @@ module.exports = function MapiConnection(options) {
      */
     function _sendMessage(message) {
         if (options.debugMapi) {
-            options.debugMapiFn('TX', message.message);
+            options.debugMapiFn('TX', message);
         }
 
-        _curMessage = message;
-        var buf = new Buffer(message.message, 'utf8');
+        var buf = new Buffer(message, 'utf8');
         var final = 0;
         while (final == 0) {
             var bs = Math.min(buf.length, _mapiBlockSize - 2);
@@ -142,6 +142,8 @@ module.exports = function MapiConnection(options) {
         /* prompt, good */
         if (response == '') {
             _setState('ready');
+            // do not resolve _curMessage here, since this prompt should only happen directly after
+            // authentication, which circumvents the _curMessage.
             return _nextMessage();
         }
 
@@ -154,7 +156,8 @@ module.exports = function MapiConnection(options) {
             /* error message during authentication? */
             if (response.charAt(0) == '!') {
                 response = 'Error: ' + response.substring(1, response.length - 1);
-                return _curMessage.deferred.reject(response);
+                _connectDeferred && _connectDeferred.reject(response);
+                return _curMessage && _curMessage.deferred.reject(response);
             }
 
             // means we get the challenge from the server
@@ -167,7 +170,7 @@ module.exports = function MapiConnection(options) {
             var pwhash = __sha512(__sha512(options.password) + salt);
             var counterResponse = 'LIT:' + options.user + ':{SHA512}' + pwhash + ':' +
                 options.language + ':' + options.dbname + ':';
-            _sendMessage({ message: counterResponse, deferred: Q.defer().promise});
+            _sendMessage(counterResponse);
             return;
         }
 
@@ -462,7 +465,6 @@ module.exports = function MapiConnection(options) {
                     // Swap these queues, and resume the msg loop
                     _messageQueue = _messageQueueDisconnected;
                     _messageQueueDisconnected = null;
-
                     _resumeMsgLoop();
                     _connectDeferred.resolve();
                 }, function (err) {
