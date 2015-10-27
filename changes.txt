@@ -12,3 +12,7 @@ TESTCASES
 - Failing connection (reconnect)
 - Failing connection in between prepared statement and exec fn
 - Delayed connect (ie putting queries in the queue before calling connect)
+
+
+NOTES:
+- releasefun of MonetDBConnection.prepare does not return a promise
