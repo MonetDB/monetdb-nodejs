@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "node_modules/.bin/mocha Tests/test.js",
-    "coverage": "node_modules/.bin/istanbul cover --report html node_modules/.bin/_mocha Tests/test.js",
+    "coverage": "node_modules/.bin/istanbul cover node_modules/.bin/_mocha --report lcovonly -- -R spec Tests/test.js",
+    "coveralls": "npm run-script coverage && node node_modules/coveralls/bin/coveralls.js < coverage/lcov.info",
     "docs": "jsdoc2md index.js > README.md && jsdoc2md mapi-connection.js > README.mapi-connection.md"
   },
   "keywords": [
@@ -15,10 +16,12 @@
     "name": "Hannes Mühleisen",
     "email": "hannes@cwi.nl"
   },
-  "contributors": [{
-    "name": "Robin Cijvat",
-    "email": "robin.cijvat@monetdbsolutions.com"
-  }],
+  "contributors": [
+    {
+      "name": "Robin Cijvat",
+      "email": "robin.cijvat@monetdbsolutions.com"
+    }
+  ],
   "repository": {
     "type": "hg",
     "url": "http://dev.monetdb.org/hg/MonetDB/"
@@ -27,7 +30,9 @@
   "devDependencies": {
     "chai": "^3.4.0",
     "chai-as-promised": "^5.1.0",
+    "coveralls": "^2.11.4",
     "istanbul": "^0.4.0",
-    "mocha": "^2.3.3"
+    "mocha": "^2.3.3",
+    "mocha-lcov-reporter": "^1.0.0"
   }
 }

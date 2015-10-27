@@ -3,3 +3,4 @@ node_js:
   - "0.10"
 sudo: required
 install: ./install-monetdb.sh
+after_success: 'npm run coveralls'
