@@ -3,8 +3,8 @@
 deb http://dev.monetdb.org/downloads/deb/ precise monetdb
 deb-src http://dev.monetdb.org/downloads/deb/ precise monetdb
 
-wget --output-document=- https://www.monetdb.org/downloads/MonetDB-GPG-KEY | sudo apt-key add -
+wget --output-document=- https://www.monetdb.org/downloads/MonetDB-GPG-KEY | apt-key add -
 
-sudo apt-get update
+apt-get update
 
-sudo apt-get install monetdb5-sql monetdb-client
+apt-get install monetdb5-sql monetdb-client
