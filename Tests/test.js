@@ -171,7 +171,7 @@ describe("#Regular querying", function() {
     it("should work on many queries", function() {
         this.timeout(10000);
         var qs = [];
-        for(var i=0; i<10; ++i) {
+        for(var i=0; i<1000; ++i) {
             qs.push(
                 conn.query("SELECT " + i + " AS i")
                     .should.eventually.have.property("data")
@@ -249,7 +249,7 @@ describe("Prepared queries", function() {
             };
 
             var qs = [];
-            for(var i=0; i<10; ++i) {
+            for(var i=0; i<1000; ++i) {
                 var fnIndex = Math.round(notSoRandom()*(queryFns.length-1));
                 qs.push(queryFns[fnIndex]());
             }

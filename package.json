@@ -4,6 +4,8 @@
   "description": "Connect MonetDB to your NodeJS app",
   "main": "index.js",
   "scripts": {
+    "test": "node_modules/.bin/mocha Tests/test.js",
+    "coverage": "node_modules/.bin/istanbul cover --report html node_modules/.bin/_mocha Tests/test.js",
     "docs": "jsdoc2md index.js > README.md && jsdoc2md mapi-connection.js > README.mapi-connection.md"
   },
   "keywords": [
@@ -13,22 +15,19 @@
     "name": "Hannes Mühleisen",
     "email": "hannes@cwi.nl"
   },
-  "contributors": [
-    {
-      "name": "Robin Cijvat",
-      "email": "robin.cijvat@monetdbsolutions.com"
-    }
-  ],
+  "contributors": [{
+    "name": "Robin Cijvat",
+    "email": "robin.cijvat@monetdbsolutions.com"
+  }],
   "repository": {
     "type": "hg",
     "url": "http://dev.monetdb.org/hg/MonetDB/"
   },
-  "bugs": {
-    "url": "https://www.monetdb.org/bugzilla/"
-  },
   "license": "MonetDB License, https://www.monetdb.org/Legal/MonetDBLicense",
   "devDependencies": {
     "chai": "^3.4.0",
-    "chai-as-promised": "^5.1.0"
+    "chai-as-promised": "^5.1.0",
+    "istanbul": "^0.4.0",
+    "mocha": "^2.3.3"
   }
 }
