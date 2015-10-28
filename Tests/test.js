@@ -202,7 +202,7 @@ describe("#Reconnect logic", function() {
             var qs = [];
             for(var i=0; i<1000; ++i) {
                 qs.push(
-                    conn.query("SELECT " + i + " AS i")
+                    conn.query("SELECT " + i + " AS i").then(function(result) { console.log(result.data[0][0]); return result; })
                         .should.eventually.have.property("data")
                         .that.deep.equals([[i]])
                 );
