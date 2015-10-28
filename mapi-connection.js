@@ -506,10 +506,10 @@ module.exports = function MapiConnection(options) {
     self.destroy = function(msg) {
         _destroySocket();
         _messageQueue.forEach(function(message) {
-            message.deferred.reject(msg ? msg : 'Connection destroyed');
+            message.deferred.reject(new Error(msg ? msg : 'Connection destroyed'));
         });
         _messageQueueDisconnected && _messageQueueDisconnected.forEach(function(message) {
-            message.deferred.reject(msg ? msg : 'Connection destroyed');
+            message.deferred.reject(new Error(msg ? msg : 'Connection destroyed'));
         });
         _messageQueue = [];
         _messageQueueDisconnected = [];

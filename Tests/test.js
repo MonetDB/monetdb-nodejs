@@ -290,7 +290,7 @@ describe("#Regular querying", function() {
         var query = conn.query("SELECT '" + longstr + "' AS longstr");
         return shouldHaveValidResult(query, 1, 1, ["longstr"])
             .should.eventually.have.property("data")
-            .that.deep.equals([[longstr]]) // for some reason, if equals fails here, the truncateThreshold is
+            .that.deep.equals([[longstr]]); // for some reason, if equals fails here, the truncateThreshold is
                                             // ignored and the huge string is printed... let's just
                                             // hope this equals test always passes
     });
