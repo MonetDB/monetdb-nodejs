@@ -78,7 +78,7 @@ describe("#Connection", function() {
     });
 
     it("should connect", function() {
-        var conn = new MDB();
+        var conn = new MDB({debugMapi: true});
         conns.push(conn);
         return conn.connect()
             .should.not.be.rejected;
@@ -102,11 +102,11 @@ describe("#Regular querying", function() {
     conn.connect();
 
     beforeEach("Starting transaction", function() {
-        conn.query("START TRANSACTION");
+        return conn.query("START TRANSACTION");
     });
 
     afterEach("Rollback transaction", function() {
-        conn.query("ROLLBACK");
+        return conn.query("ROLLBACK");
     });
 
     after("Destroy connection", function() {
@@ -196,7 +196,7 @@ describe("Prepared queries", function() {
     });
 
     afterEach("Rollback transaction", function() {
-        conn.query("ROLLBACK");
+        return conn.query("ROLLBACK");
     });
 
     after("Destroy connection", function() {
