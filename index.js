@@ -45,14 +45,9 @@ var optionDefinition = {
         dflt: false,
         transform: parseBool
     },
-    log: {
+    logger: {
         type: 'function',
-        dflt: console.log,
-        transform: function(x) {
-            // does not transform, but updates utils.log
-            utils.log = x;
-            return x;
-        }
+        dflt: console.log
     },
     debug: {
         type: 'boolean',
@@ -80,6 +75,11 @@ var optionDefinition = {
     debugMapiFn: {
         type: 'function',
         dflt: utils.debugMapi
+    },
+    testing: {
+        type: 'boolean',
+        dflt: false,
+        transform: parseBool
     }
 };
 
@@ -117,7 +117,7 @@ function parseOptions(opts, globalOpts) {
     if(result.debug) {
         Object.keys(opts).forEach(function(option) {
             if(result[option] === undefined) {
-                result.debugFn('warn', 'Unrecognized option "' + option + '"');
+                result.debugFn(result.logger, 'warn', 'Unrecognized option "' + option + '"');
             }
         });
     }

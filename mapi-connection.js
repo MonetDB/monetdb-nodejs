@@ -34,7 +34,7 @@ module.exports = function MapiConnection(options) {
 
     function _setState(state) {
         if(options.debug) {
-            options.debugFn('info', 'Setting state to ' + state + '..');
+            options.debugFn(options.logger, 'info', 'Setting state to ' + state + '..');
         }
         _state = state;
     }
@@ -63,7 +63,7 @@ module.exports = function MapiConnection(options) {
      */
     function _sendMessage(message) {
         if (options.debugMapi) {
-            options.debugMapiFn('TX', message);
+            options.debugMapiFn(options.logger, 'TX', message);
         }
 
         var buf = new Buffer(message, 'utf8');
@@ -77,11 +77,12 @@ module.exports = function MapiConnection(options) {
             }
 
             if (options.debug) {
-                options.debugFn('info', 'Writing ' + bs + ' bytes, final=' + final);
+                options.debugFn(options.logger, 'info', 'Writing ' + bs + ' bytes, final=' + final);
             }
 
             var hdrbuf = new Buffer(2);
             hdrbuf.writeInt16LE((bs << 1) | final, 0);
+            if(!_socket) return;
             _socket.write(Buffer.concat([hdrbuf, sendbuf]));
         }
     }
@@ -95,7 +96,7 @@ module.exports = function MapiConnection(options) {
             data = data.slice(2);
         }
         if (options.debug) {
-            options.debugFn('info', 'Reading ' + _readLeftOver + ' bytes, final=' + _readFinal);
+            options.debugFn(options.logger, 'info', 'Reading ' + _readLeftOver + ' bytes, final=' + _readFinal);
         }
 
         /* what is in the buffer is not necessary the entire block */
@@ -136,7 +137,7 @@ module.exports = function MapiConnection(options) {
      */
     function _handleResponse(response) {
         if (options.debugMapi) {
-            options.debugMapiFn('RX', response);
+            options.debugMapiFn(options.logger, 'RX', response);
         }
 
         /* prompt, good */
@@ -316,7 +317,7 @@ module.exports = function MapiConnection(options) {
         if(attempt > options.maxReconnects) {
             // reached limit
             if (options.debug) {
-                options.debugFn('info', 'Attempted to reconnect for ' + (attempt-1) + ' times.. We are giving up now.');
+                options.debugFn(options.logger,  'info', 'Attempted to reconnect for ' + (attempt-1) + ' times.. We are giving up now.');
             }
             return self.destroy('Failed to connect to MonetDB server');
         }
@@ -342,16 +343,16 @@ module.exports = function MapiConnection(options) {
 
 
         if(options.debug) {
-            options.debugFn('warn', 'Reconnect attempt ' + attempt + '/' + options.maxReconnects + ' in ' + (options.reconnectTimeout/1000) + ' sec..');
+            options.debugFn(options.logger, 'warn', 'Reconnect attempt ' + attempt + '/' + options.maxReconnects + ' in ' + (options.reconnectTimeout/1000) + ' sec..');
         }
         setTimeout(function() {
             self.connect().then(function() {
                 if(options.debug) {
-                    options.debugFn('info', 'Reconnection succeeded.');
+                    options.debugFn(options.logger, 'info', 'Reconnection succeeded.');
                 }
             }, function(err) {
                 if(options.debug) {
-                    options.debugFn('error', 'Could not connect to MonetDB: ' + err);
+                    options.debugFn(options.logger, 'error', 'Could not connect to MonetDB: ' + err);
                 }
                 _messageQueue = [];
                 _reconnect(attempt+1);
@@ -369,7 +370,7 @@ module.exports = function MapiConnection(options) {
             _connectDeferred.reject(err);
         }
         if(options.debug) {
-            options.debugFn('warn', 'Socket error occurred: ' + err.toString());
+            options.debugFn(options.logger, 'warn', 'Socket error occurred: ' + err.toString());
         }
     }
     function _onClose(hadError) {
@@ -410,9 +411,9 @@ module.exports = function MapiConnection(options) {
         }
         if(options.debugRequests) {
             defer.promise.then(function(res) {
-                options.debugRequestFn(message, null, res);
+                options.debugRequestFn(options.logger, message, null, res);
             }, function(err) {
-                options.debugRequestFn(message, err, null);
+                options.debugRequestFn(options.logger, message, err, null);
             });
         }
         return defer.promise;
@@ -469,7 +470,7 @@ module.exports = function MapiConnection(options) {
                     _connectDeferred.resolve();
                 }, function (err) {
                     if (options.debug) {
-                        options.debugFn('error', 'Error on executing test query "SELECT 42": ' + err);
+                        options.debugFn(options.logger, 'error', 'Error on executing test query "SELECT 42": ' + err);
                     }
                     _connectDeferred.reject('Could not connect to MonetDB');
                 }).done();
@@ -514,6 +515,15 @@ module.exports = function MapiConnection(options) {
         _messageQueueDisconnected = [];
 
         _setState('destroyed');
-
     };
+
+
+    if(options.testing) {
+        self.socketError = function(statusCode) {
+            if(!_socket) throw new Error("Socket not initialized yet");
+            _socket.end();
+            _socket.emit('error', statusCode);
+            _socket.emit('close', true);
+        }
+    }
 };
