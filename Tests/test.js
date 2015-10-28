@@ -5,9 +5,10 @@ var Q = require("q");
 chai.should();
 chai.use(chaiAsPromised);
 
-
-var MDB = require("../index.js")({debug: false, dbname: "test"});
-
+var mdb = require("../index.js");
+function getMDB() {
+    return mdb({debug: false, dbname: "test"});
+}
 
 function shouldHaveValidResult(query, nrRows, nrCols, colNames) {
     var colObj = colNames.reduce(function(o, v, i) {
@@ -45,10 +46,100 @@ function notSoRandom() {
     return x - Math.floor(x);
 }
 
+describe("#Options", function() {
+    it("should throw exception when global option has wrong type", function() {
+        (function() { mdb({dbname: 2, debug: false}); }).should.throw(Error);
+    });
+
+    it("should throw exception when local option has wrong type", function() {
+        (function() { new (mdb({debug: false}))({dbname: 2}); }).should.throw(Error);
+    });
+
+    it("should not throw exception when global required options are missing", function() {
+        (function() { mdb({debug: false}); }).should.not.throw(Error);
+    });
+
+    it("should throw exception when local required option is missing", function() {
+        (function() { new (mdb({debug: false}))(); }).should.throw(Error);
+    });
+
+    it("should not throw exception when local required option was given globally", function() {
+        (function() { new (mdb({dbname: "test", debug: false}))(); }).should.not.throw(Error);
+    });
+
+    it("should use default if both global and local are not given", function() {
+        new (mdb({dbname: "test", debug: false}))()
+            .option("user").should.equal("monetdb");
+    });
+
+    it("should use global if global is given but local isn't", function() {
+        new (mdb({dbname: "test", debug: false, user: "custom"}))()
+            .option("user").should.equal("custom");
+    });
+
+    it("should use local if both global and local are given", function() {
+        new (mdb({dbname: "test", debug: false, user: "custom"}))({user: "other"})
+            .option("user").should.equal("other");
+    });
+
+    it("should use local if only local is given", function() {
+        new (mdb({dbname: "test", debug: false}))({user: "other"})
+            .option("user").should.equal("other");
+    });
+});
+
+describe("#Logging", function() {
+    this.timeout(10000);
+    it("should give warning for unrecognized options when debug is set to true", function() {
+        var calls = 0;
+        function myDebugFn(type) { if(type == "warn") ++calls; }
+        new (mdb({log: function() { }, debugFn: myDebugFn}))({dbname: "test", hopefullyNotAnOption: 1});
+        return calls.should.be.above(0);
+    });
+
+    it("should be done at least once for debug messages during connect", function() {
+        var calls = 0;
+        function mylog() { ++calls; }
+        var deferred = Q.defer();
+        var conn = new (mdb({dbname: "test", log: mylog}))();
+        conn.connect().fin(function() {
+            if(calls) deferred.resolve();
+            else deferred.reject("Debug log function was never called");
+        });
+        return deferred.promise;
+    });
+
+    it("should be done at least once for debugMapi messages during connect", function() {
+        var calls = 0;
+        function mylog() { ++calls; }
+        var deferred = Q.defer();
+        var conn = new (mdb({dbname: "test", log: mylog, debug: false, debugMapi: true}))();
+        conn.connect().fin(function() {
+            if(calls) deferred.resolve();
+            else deferred.reject("Debug mapi log function was never called");
+        });
+        return deferred.promise;
+    });
+
+    it("should be done at least once for debugRequests messages during connect", function() {
+        var calls = 0;
+        function mylog() { ++calls; }
+        var deferred = Q.defer();
+        var conn = new (mdb({dbname: "test", log: mylog, debug: false, debugRequests: true}))();
+        conn.connect().fin(function() {
+            if(calls) deferred.resolve();
+            else deferred.reject("Requests log function was never called");
+        });
+        return deferred.promise;
+    });
+});
+
+
 describe("#Connection", function() {
     this.timeout(10000);
 
     var conns = [];
+    var MDB = getMDB();
 
     after("Cleanup connections", function() {
         conns.forEach(function(conn) {
@@ -98,6 +189,7 @@ describe("#Connection", function() {
 describe("#Regular querying", function() {
     this.timeout(10000);
 
+    var MDB = getMDB();
     var conn = new MDB();
     conn.connect();
 
@@ -128,6 +220,24 @@ describe("#Regular querying", function() {
                 [43, 4.3, "43"],
                 [44, 4.4, "44"],
                 [45, 4.5, "45"]
+            ]);
+    });
+
+    it("should yield a valid pretty result on demand", function() {
+        var query = conn.query(
+            "CREATE TABLE foo(a INT, b FLOAT, c BLOB);\n" +
+            "INSERT INTO foo VALUES (42,4.2,'42'),(43,4.3,'43'),(44,4.4,'44'),(45,4.5,'45')"
+        ).then(function() {
+            return conn.query("SELECT * FROM foo", true);
+        });
+
+        return shouldHaveValidResult(query, 4, 3, ["a", "b", "c"])
+            .should.eventually.have.property("data")
+            .that.deep.equals([
+                {a: 42, b: 4.2, c: "42"},
+                {a: 43, b: 4.3, c: "43"},
+                {a: 44, b: 4.4, c: "44"},
+                {a: 45, b: 4.5, c: "45"}
             ]);
     });
 
@@ -185,9 +295,10 @@ describe("#Regular querying", function() {
     });
 });
 
-describe("Prepared queries", function() {
+describe("#Prepared queries", function() {
     this.timeout(10000);
 
+    var MDB = getMDB();
     var conn = new MDB();
     conn.connect();
 
@@ -284,6 +395,22 @@ describe("Prepared queries", function() {
             .that.deep.equals([
                 [8, 8.8, "8.8.8"],
                 [9, 9.9, "9.9.9"]
+            ]);
+    });
+
+    it("should generate pretty results when requested", function() {
+        var query = conn.query(
+            "INSERT INTO foo VALUES (42,4.2,'42'),(43,4.3,'43'),(44,4.4,'44'),(45,4.5,'45')"
+        ).then(function() {
+            return conn.query("SELECT * FROM foo WHERE d > ?", [42], true);
+        });
+
+        return shouldHaveValidResult(query, 3, 3, ["d", "e", "f"])
+            .should.eventually.have.property("data")
+            .that.deep.equals([
+                {d: 43, e: 4.3, f: "43"},
+                {d: 44, e: 4.4, f: "44"},
+                {d: 45, e: 4.5, f: "45"}
             ]);
     });
 
