@@ -6,7 +6,7 @@ chai.should();
 chai.use(chaiAsPromised);
 
 
-var MDB = require("../index.js")({debug: false, dbname: "test"});
+var MDB = require("../index.js")({debug: true, debugMapi: true, dbname: "test"});
 
 
 function shouldHaveValidResult(query, nrRows, nrCols, colNames) {
@@ -78,7 +78,7 @@ describe("#Connection", function() {
     });
 
     it("should connect", function() {
-        var conn = new MDB({debugMapi: true});
+        var conn = new MDB();
         conns.push(conn);
         return conn.connect()
             .should.not.be.rejected;
@@ -139,7 +139,7 @@ describe("#Regular querying", function() {
             }
             return ret;
         }
-        var longstr = rep('ABCDEFGHIJKLMNOP', 100);
+        var longstr = rep('ABCDEFGHIJKLMNOP', 10000);
         var query = conn.query("SELECT '" + longstr + "' AS longstr");
         return shouldHaveValidResult(query, 1, 1, ["longstr"])
             .should.eventually.have.property("data")
