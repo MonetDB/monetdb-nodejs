@@ -46,6 +46,8 @@ function notSoRandom() {
 }
 
 describe("#Connection", function() {
+    this.timeout(30000);
+
     var conns = [];
 
     after("Cleanup connections", function() {
@@ -94,6 +96,8 @@ describe("#Connection", function() {
 });
 
 describe("#Regular querying", function() {
+    this.timeout(30000);
+
     var conn = new MDB();
     conn.connect();
 
@@ -169,7 +173,6 @@ describe("#Regular querying", function() {
     });
 
     it("should work on many queries", function() {
-        this.timeout(10000);
         var qs = [];
         for(var i=0; i<1000; ++i) {
             qs.push(
@@ -183,6 +186,8 @@ describe("#Regular querying", function() {
 });
 
 describe("Prepared queries", function() {
+    this.timeout(30000);
+
     var conn = new MDB();
     conn.connect();
 
@@ -224,7 +229,6 @@ describe("Prepared queries", function() {
     });
 
     it("should be interleavable with normal queries", function() {
-        this.timeout(10000);
         var queryFns = [
             function() { return conn.query("SELECT COUNT(*) FROM foo"); },
             function() { return conn.query("SELECT AVG(d + e) AS avg FROM foo GROUP BY f"); },
