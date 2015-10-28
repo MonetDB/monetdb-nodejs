@@ -117,7 +117,7 @@ function parseOptions(opts, globalOpts) {
     if(result.debug) {
         Object.keys(opts).forEach(function(option) {
             if(result[option] === undefined) {
-                utils.debug('warn', 'Unrecognized option "' + option + '"');
+                result.debugFn('warn', 'Unrecognized option "' + option + '"');
             }
         });
     }
@@ -236,6 +236,10 @@ module.exports = function(d) {
                     return o;
                 }, {});
             });
+        };
+
+        self.option = function(option) {
+            return _options[option];
         };
 
         // TODO: consider proxying a connection promise

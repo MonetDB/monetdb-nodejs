@@ -136,7 +136,7 @@ module.exports = function MapiConnection(options) {
      */
     function _handleResponse(response) {
         if (options.debugMapi) {
-            utils.debugMapi('RX', response);
+            options.debugMapiFn('RX', response);
         }
 
         /* prompt, good */
