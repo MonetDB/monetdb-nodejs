@@ -46,7 +46,7 @@ function notSoRandom() {
 }
 
 describe("#Connection", function() {
-    this.timeout(30000);
+    this.timeout(10000);
 
     var conns = [];
 
@@ -96,7 +96,7 @@ describe("#Connection", function() {
 });
 
 describe("#Regular querying", function() {
-    this.timeout(30000);
+    this.timeout(10000);
 
     var conn = new MDB();
     conn.connect();
@@ -186,7 +186,7 @@ describe("#Regular querying", function() {
 });
 
 describe("Prepared queries", function() {
-    this.timeout(30000);
+    this.timeout(10000);
 
     var conn = new MDB();
     conn.connect();
