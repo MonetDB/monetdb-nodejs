@@ -90,47 +90,39 @@ describe("#Options", function() {
 
 describe("#Logging", function() {
     this.timeout(10000);
+
+    var calls;
+    function mylogger() { ++calls; }
+
     it("should give warning for unrecognized options when debug is set to true", function() {
-        var calls = 0;
-        function myDebugFn(type) { if(type == "warn") ++calls; }
-        new (mdb({log: function() { }, debugFn: myDebugFn}))({dbname: "test", hopefullyNotAnOption: 1});
+        calls = 0;
+        function myDebugFn(logger, type) { if(type == "warn") ++calls; }
+        new (mdb({logger: function() { }, debugFn: myDebugFn}))({dbname: "test", hopefullyNotAnOption: 1});
         return calls.should.be.above(0);
     });
 
     it("should be done at least once for debug messages during connect", function() {
-        var calls = 0;
-        function mylog() { ++calls; }
-        var deferred = Q.defer();
-        var conn = new (mdb({dbname: "test", log: mylog}))();
-        conn.connect().fin(function() {
-            if(calls) deferred.resolve();
-            else deferred.reject("Debug log function was never called");
+        calls = 0;
+        var conn = new (mdb({dbname: "test", logger: mylogger}))();
+        return conn.connect().fin(function() {
+            calls.should.be.above(0);
         });
-        return deferred.promise;
     });
 
     it("should be done at least once for debugMapi messages during connect", function() {
-        var calls = 0;
-        function mylog() { ++calls; }
-        var deferred = Q.defer();
-        var conn = new (mdb({dbname: "test", log: mylog, debug: false, debugMapi: true}))();
-        conn.connect().fin(function() {
-            if(calls) deferred.resolve();
-            else deferred.reject("Debug mapi log function was never called");
+        calls = 0;
+        var conn = new (mdb({dbname: "test", logger: mylogger, debug: false, debugMapi: true}))();
+        return conn.connect().fin(function() {
+            calls.should.be.above(0);
         });
-        return deferred.promise;
     });
 
     it("should be done at least once for debugRequests messages during connect", function() {
-        var calls = 0;
-        function mylog() { ++calls; }
-        var deferred = Q.defer();
-        var conn = new (mdb({dbname: "test", log: mylog, debug: false, debugRequests: true}))();
-        conn.connect().fin(function() {
-            if(calls) deferred.resolve();
-            else deferred.reject("Requests log function was never called");
+        calls = 0;
+        var conn = new (mdb({dbname: "test", logger: mylogger, debug: false, debugRequests: true}))();
+        return conn.connect().fin(function() {
+            calls.should.be.above(0);
         });
-        return deferred.promise;
     });
 });
 
@@ -183,6 +175,51 @@ describe("#Connection", function() {
             conn.query("SELECT 2"),
             conn.query("SELECT 3")
         ]).should.be.rejected;
+    });
+});
+
+describe("#Reconnect logic", function() {
+    this.timeout(10000);
+    var MDB = getMDB();
+
+    it("should finish query after reconnect", function() {
+        var conn = new MDB({testing: true});
+        var query = conn.connect().then(function() {
+            conn.mapiConnection.socketError("ECONNRESET");
+            return conn.query("SELECT 'whatever' AS a");
+        });
+
+        return shouldHaveValidResult(query, 1, 1, ["a"])
+            .should.eventually.have.property("data")
+            .that.deep.equals([["whatever"]]);
+    });
+
+    it("should finish many queries when reconnects occur in between", function() {
+        this.timeout(30000);
+
+        var conn = new MDB({testing: true});
+        return conn.connect().then(function() {
+            var qs = [];
+            for(var i=0; i<1000; ++i) {
+                qs.push(
+                    conn.query("SELECT " + i + " AS i")
+                        .should.eventually.have.property("data")
+                        .that.deep.equals([[i]])
+                );
+            }
+            // simulate connection failure with a random interval
+            var timeout = null;
+            function failNow() {
+                try {
+                    conn.mapiConnection.socketError("ECONNRESET");
+                } catch(e) {}
+                timeout = setTimeout(failNow, Math.round(notSoRandom()*300));
+            }
+            failNow();
+            return Q.all(qs).fin(function() {
+                if(timeout !== null) clearTimeout(timeout);
+            });
+        });
     });
 });
 
