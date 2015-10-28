@@ -8,5 +8,5 @@ apt-get update
 
 apt-get install monetdb5-sql monetdb-client
 
-echo "user=monetdb\npassword=monetdb\n" > ~/.monetdb
+printf "user=monetdb\npassword=monetdb\n" > ~/.monetdb2
 
