@@ -26,7 +26,7 @@
     "type": "hg",
     "url": "http://dev.monetdb.org/hg/MonetDB/"
   },
-  "license": "MonetDB License, https://www.monetdb.org/Legal/MonetDBLicense",
+  "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
     "chai": "^3.4.0",
     "chai-as-promised": "^5.1.0",
