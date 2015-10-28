@@ -4,7 +4,7 @@ node_js:
 sudo: required
 install:
   - sudo bash install-monetdb.sh
-  - npm install --dev
+  - npm install
 before_script:
   - bash start-monetdb.sh
 after_success:
