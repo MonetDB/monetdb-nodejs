@@ -6,7 +6,7 @@ chai.should();
 chai.use(chaiAsPromised);
 
 
-var MDB = require("../index.js")({debug: true, debugMapi: true, dbname: "test"});
+var MDB = require("../index.js")({debug: false, dbname: "test"});
 
 
 function shouldHaveValidResult(query, nrRows, nrCols, colNames) {
