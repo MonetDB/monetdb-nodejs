@@ -45,6 +45,15 @@ var optionDefinition = {
         dflt: false,
         transform: parseBool
     },
+    log: {
+        type: 'function',
+        dflt: console.log,
+        transform: function(x) {
+            // does not transform, but updates utils.log
+            utils.log = x;
+            return x;
+        }
+    },
     debug: {
         type: 'boolean',
         dflt: true,

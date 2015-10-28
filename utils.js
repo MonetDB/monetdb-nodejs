@@ -1,22 +1,20 @@
 'use strict';
 
+module.exports.log = console.log;
+
 module.exports.debug = function(type, msg) {
-    console[type]('DEBUG ' + msg);
+    module.exports.log('DEBUG [' + type.toUpperCase() + '] '+ msg);
 };
 
 module.exports.debugRequest = function(message, error, result) {
-    console.info(message + '\n');
-    error && console.info(error + '\n');
-    if(result && result.rows) {
-        console.info(JSON.stringify(result.data[0], null, ' ' + '\n'));
-        result.rows > 1 && console.info(JSON.stringify(result.data[1], null, ' ' + '\n'));
-        result.rows > 2 && console.info('..');
-    }
-    console.info('\n\n');
+    module.exports.log(message + '\n');
+    error && module.exports.log(error + '\n');
+    module.exports.log(result.rows + " rows, " + result.cols + " cols");
+    module.exports.log('\n\n');
 };
 
 module.exports.debugMapi = function(type, msg) {
-    console.info(type + ": " + msg);
+    module.exports.log(type + ": " + msg);
 };
 
 module.exports.packQuery = function(msg) {
