@@ -7,3 +7,6 @@ wget --output-document=- https://www.monetdb.org/downloads/MonetDB-GPG-KEY | apt
 apt-get update
 
 apt-get install monetdb5-sql monetdb-client
+
+echo "user=monetdb\npassword=monetdb\n" > ~/.monetdb
+
