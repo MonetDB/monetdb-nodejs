@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-deb http://dev.monetdb.org/downloads/deb/ precise monetdb
-deb-src http://dev.monetdb.org/downloads/deb/ precise monetdb
+sudo add-apt-repository -s http://dev.monetdb.org/downloads/deb/
 
 wget --output-document=- https://www.monetdb.org/downloads/MonetDB-GPG-KEY | apt-key add -
 
