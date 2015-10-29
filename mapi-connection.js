@@ -266,12 +266,19 @@ module.exports = function MapiConnection(options) {
                                     case 'wrd':
                                     case 'bigint':
                                         resultline.push(parseInt(curtok));
-                                        break
+                                        break;
                                     case 'real':
                                     case 'double':
                                     case 'decimal':
                                         resultline.push(parseFloat(curtok));
-                                        break
+                                        break;
+                                    case 'json':
+                                        try {
+                                            resultline.push(JSON.parse(curtok));
+                                        } catch(e) {
+                                            resultline.push(curtok);
+                                        }
+                                        break;
                                     default:
                                         // we need to unescape double quotes
                                         //valPtr = valPtr.replace(/[^\\]\\"/g, '"');
@@ -484,6 +491,9 @@ module.exports = function MapiConnection(options) {
     };
 
     self.request = function(message) {
+        if(options.debug && !_connectDeferred) {
+            options.debugFn(options.logger, "warn", "Request received before a call to connect. This request will not be processed until you have called connect.");
+        }
         return _request(message, _state == 'disconnected' ? _messageQueueDisconnected : _messageQueue);
     };
 

@@ -5,10 +5,10 @@ module.exports.debug = function(logger, type, msg) {
 };
 
 module.exports.debugRequest = function(logger, message, error, result) {
-    logger(message + '\n');
-    error && logger(error + '\n');
-    logger(result.rows + " rows, " + result.cols + " cols");
-    logger('\n\n');
+    logger(message);
+    error && logger(error);
+    result.rows && result.cols && logger(result.rows + " rows, " + result.cols + " cols");
+    logger('\n');
 };
 
 module.exports.debugMapi = function(logger, type, msg) {

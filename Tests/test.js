@@ -96,11 +96,11 @@ describe("#Logging", function() {
 
     var calls;
     function mylogger() { ++calls; }
+    function myDebugFn(logger, type) { if(type == "warn") ++calls; }
 
     it("should give warning for unrecognized options when debug is set to true", function() {
         calls = 0;
-        function myDebugFn(logger, type) { if(type == "warn") ++calls; }
-        new (mdb({logger: function() { }, debugFn: myDebugFn}))({dbname: "test", hopefullyNotAnOption: 1});
+        new (mdb({debugFn: myDebugFn}))({dbname: "test", hopefullyNotAnOption: 1});
         return calls.should.be.above(0);
     });
 
@@ -136,6 +136,14 @@ describe("#Logging", function() {
         }).catch(function() {
             calls.should.be.above(0);
         });
+    });
+
+    it("should give warning when queries are issued before a call to connect", function() {
+        calls = 0;
+        var conn = new (mdb({debugFn: myDebugFn}))({dbname: "test"});
+        conn.query("SELECT 42");
+        conn.connect();
+        return calls.should.be.above(0);
     });
 });
 
@@ -248,7 +256,7 @@ describe("#Reconnect logic", function() {
             var qs = [];
             for(var i=0; i<1000; ++i) {
                 qs.push(
-                    conn.query("SELECT " + i + " AS i")/*.then(function(result) { console.log(result.data[0][0]); return result; })*/
+                    conn.query("SELECT " + i + " AS i")//.then(function(result) { console.log(result.data[0][0]); return result; })
                         .should.eventually.have.property("data")
                         .that.deep.equals([[i]])
                 );
@@ -398,6 +406,36 @@ describe("#Regular querying", function() {
         }
         return Q.all(qs);
     });
+
+    it("should properly rebuild stored JSON", function() {
+        var json = {a: 9, b: {c: 's'}, c: [1,2,3,{a: 1}]};
+        var query = conn.query("CREATE TABLE foo (a JSON)").then(function() {
+            return conn.query("INSERT INTO foo VALUES ('" + JSON.stringify(json) + "')");
+        }).then(function() {
+            return conn.query("SELECT * FROM foo");
+        });
+        return shouldHaveValidResult(query, 1, 1, ["a"])
+            .should.eventually.have.property("data")
+            .that.deep.equals([[json]]);
+    });
+
+    it("should fail when trying to insert invalid JSON", function() {
+        return conn.query("CREATE TABLE foo (a JSON)").then(function() {
+            return conn.query("INSERT INTO foo VALUES ('{someInvalidJSON')");
+        }).should.be.rejected;
+    });
+
+    it("should properly convert booleans", function() {
+        var query = conn.query("CREATE TABLE foo (a BOOLEAN, b BOOLEAN)").then(function() {
+            return conn.query("INSERT INTO foo VALUES (true, false)");
+        }).then(function() {
+            return conn.query("SELECT * FROM foo");
+        });
+
+        return shouldHaveValidResult(query, 1, 2, ["a", "b"])
+            .should.eventually.have.property("data")
+            .that.deep.equals([[true, false]]);
+    });
 });
 
 describe("#Prepared queries", function() {
@@ -518,6 +556,50 @@ describe("#Prepared queries", function() {
                 {d: 45, e: 4.5, f: "45"}
             ]);
     });
+
+    it("should properly handle json parameters", function() {
+        var json = {a: 9, b: {c: 's'}, c: [1,2,3,{a: 1}]};
+        var query = conn.query("CREATE TABLE bar (a JSON)").then(function() {
+            return conn.query("INSERT INTO bar VALUES (?)", [json]);
+        }).then(function() {
+            return conn.query("SELECT * FROM bar");
+        });
+
+        return shouldHaveValidResult(query, 1, 1, ["a"])
+            .should.eventually.have.property("data")
+            .that.deep.equals([[json]]);
+    });
+
+    it("should properly handle boolean parameters", function() {
+        var query = conn.query("CREATE TABLE bar (a BOOLEAN, b BOOLEAN)").then(function() {
+            return conn.query("INSERT INTO bar VALUES (?, ?)", [true, false]);
+        }).then(function() {
+            return conn.query("SELECT * FROM bar");
+        });
+
+        return shouldHaveValidResult(query, 1, 2, ["a", "b"])
+            .should.eventually.have.property("data")
+            .that.deep.equals([[true, false]]);
+    });
+
+    it("should properly handle timestamp, timestamptz, and date", function() {
+        var vals = ["2015-10-29 11:31:35.000000", "2015-10-29 11:31:35.000000+00:00", "2015-10-29"];
+        var query = conn.query("CREATE TABLE bar (a timestamp, b timestamptz, c date)").then(function() {
+            return conn.query(
+                "INSERT INTO bar VALUES (?, ?, ?)",
+                vals
+            );
+        }).then(function() {
+            return conn.query("SELECT * FROM bar");
+        });
+
+        return shouldHaveValidResult(query, 1, 3, ["a", "b", "c"])
+            .should.eventually.have.property("data")
+            .that.deep.equals([vals]);
+    });
+
+
+
 
     it("should fail when too few params are given", function() {
             return conn.query("INSERT INTO foo VALUES (?, ?, ?)", [2])
