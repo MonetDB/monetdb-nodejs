@@ -156,7 +156,7 @@ module.exports = function MapiConnection(options) {
         if (_state == 'connected') {
             /* error message during authentication? */
             if (response.charAt(0) == '!') {
-                response = 'Error: ' + response.substring(1, response.length - 1);
+                response = new Error('Error: ' + response.substring(1, response.length - 1));
                 _connectDeferred && _connectDeferred.reject(response);
                 return _curMessage && _curMessage.deferred.reject(response);
             }
@@ -177,7 +177,7 @@ module.exports = function MapiConnection(options) {
 
         /* error message */
         if (response.charAt(0) == '!') {
-            _curMessage.deferred.reject(response.substring(1, response.length - 1));
+            _curMessage.deferred.reject(new Error(response.substring(1, response.length - 1)));
         }
 
         /* query result */
@@ -367,7 +367,7 @@ module.exports = function MapiConnection(options) {
         if(_state == 'disconnected') {
             // there must have been a connection error, since the error handler was called
             // before the net.connect callback
-            _connectDeferred.reject(err);
+            _connectDeferred.reject(new Error(err));
         }
         if(options.debug) {
             options.debugFn(options.logger, 'warn', 'Socket error occurred: ' + err.toString());
@@ -401,7 +401,7 @@ module.exports = function MapiConnection(options) {
 
     function _request(message, queue) {
         var defer = Q.defer();
-        if(_state == 'destroyed') defer.reject('Cannot accept request: connection was destroyed.');
+        if(_state == 'destroyed') defer.reject(new Error('Cannot accept request: connection was destroyed.'));
         else {
             queue.push({
                 message: message,
@@ -440,8 +440,8 @@ module.exports = function MapiConnection(options) {
 
     self.connect = function() {
         _connectDeferred = Q.defer();
-        if(_state == 'destroyed') _connectDeferred.reject('Failed to connect: This connection was destroyed.');
-        else if(_state != 'disconnected') _connectDeferred.reject('Failed to connect: This connection is still open..');
+        if(_state == 'destroyed') _connectDeferred.reject(new Error('Failed to connect: This connection was destroyed.'));
+        else if(_state != 'disconnected') _connectDeferred.reject(new Error('Failed to connect: This connection is still open..'));
         else {
             // set up the connection
 
@@ -472,7 +472,7 @@ module.exports = function MapiConnection(options) {
                     if (options.debug) {
                         options.debugFn(options.logger, 'error', 'Error on executing test query "SELECT 42": ' + err);
                     }
-                    _connectDeferred.reject('Could not connect to MonetDB');
+                    _connectDeferred.reject(new Error('Could not connect to MonetDB'));
                 }).done();
             });
             _socket.on('data', _onData);
@@ -505,12 +505,13 @@ module.exports = function MapiConnection(options) {
      */
     self.destroy = function(msg) {
         _destroySocket();
-        _messageQueue.forEach(function(message) {
+        function failQuery(message) {
             message.deferred.reject(new Error(msg ? msg : 'Connection destroyed'));
-        });
-        _messageQueueDisconnected && _messageQueueDisconnected.forEach(function(message) {
-            message.deferred.reject(new Error(msg ? msg : 'Connection destroyed'));
-        });
+        }
+        _curMessage && failQuery(_curMessage);
+        _messageQueue.forEach(failQuery);
+        _messageQueueDisconnected && _messageQueueDisconnected.forEach(failQuery);
+
         _messageQueue = [];
         _messageQueueDisconnected = [];
 
