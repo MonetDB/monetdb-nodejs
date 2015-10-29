@@ -88,6 +88,19 @@ var optionDefinition = {
     }
 };
 
+var apiAliases = [
+    { from: "open", to: "connect" },
+    { from: "request", to: "query" },
+    { from: "disconnect", to: "close" }
+];
+
+function applyAliases(obj) {
+    apiAliases.forEach(function(alias) {
+        obj[alias.from] = obj[alias.to];
+    });
+}
+
+
 function parseBool(b) { return !!b }
 
 function parseOptions(opts, globalOpts) {
@@ -141,6 +154,22 @@ function prettyResult(result) {
     });
 }
 
+function promiseFnWrapper(thisArg, fn, returnVal) {
+    return function() {
+        var args = Array.prototype.slice.call(arguments);
+        var callback = (typeof(args[args.length - 1]) == 'function') ? args.pop() : null;
+        var promise = fn.apply(thisArg, args);
+        if (callback) {
+            promise.then(function (result) {
+                callback(null, result);
+            }, function (err) {
+                callback(err);
+            });
+        }
+        return returnVal;
+    };
+}
+
 
 module.exports = function(d) {
     var globalOpts = parseOptions(d);
@@ -154,7 +183,7 @@ module.exports = function(d) {
         // public vars and functions
         self.mapiConnection = new MapiConnection(_options);
 
-        self.query = self.request = function(query) {
+        self.query = function(query) {
             var params = [];
             var pretty = _options.prettyResult;
             for (var i=0; i<arguments.length; ++i) {
@@ -248,10 +277,45 @@ module.exports = function(d) {
         };
 
         // proxy some methods
-        ['connect', 'getState', 'close', 'destroy'].forEach(function(d) {
-            self[d] = self.mapiConnection[d];
-        });
+        self.connect = self.mapiConnection.connect;
+        self.getState = self.mapiConnection.getState;
+        self.close = self.mapiConnection.close;
+        self.destroy = self.mapiConnection.destroy;
 
+        applyAliases(self);
+
+
+        self.getCallbackWrapper = function() {
+            var wrapper = {
+                option: self.option,
+                getState: self.getState,
+                destroy: self.destroy
+            };
+
+            // wrap connect, query and env
+            ["connect", "query", "env", "close"].forEach(function(method) {
+                wrapper[method] = promiseFnWrapper(self, self[method], wrapper);
+            });
+
+            // wrap prepare, which is somewhat more complicated, since it needs to return callback based exec and release fns
+            wrapper.prepare = function() {
+                var args = Array.prototype.slice.call(arguments);
+                var callback = (typeof(args[args.length - 1]) == 'function') ? args.pop() : null;
+                if(!callback) return wrapper; // if no callback is provided, what is the point in preparing something?
+                var promise = self.prepare.apply(self, args);
+                promise.then(function (prepResult) {
+                    prepResult.exec = promiseFnWrapper(self, prepResult.exec);
+                    callback(null, prepResult);
+                }, function (err) {
+                    callback(err);
+                });
+                return wrapper;
+            };
+
+            applyAliases(wrapper);
+
+            return wrapper;
+        };
     }
     return MonetDBConnection;
 };
