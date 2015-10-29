@@ -6,6 +6,9 @@ chai.should();
 chai.use(chaiAsPromised);
 
 var mdb = require("../index.js");
+
+function noop() {}
+
 function getMDB() {
     return mdb({debug: false, dbname: "test"});
 }
@@ -124,6 +127,16 @@ describe("#Logging", function() {
             calls.should.be.above(0);
         });
     });
+
+    it("should be done at least once for debugRequests messages on failing query", function() {
+        var conn = new (mdb({dbname: "test", logger: mylogger, debug: false, debugRequests: true}))();
+        return conn.connect().then(function() {
+            calls = 0;
+            return conn.query("WILL NOT PASS");
+        }).catch(function() {
+            calls.should.be.above(0);
+        });
+    });
 });
 
 
@@ -167,6 +180,19 @@ describe("#Connection", function() {
             .should.not.be.rejected;
     });
 
+    it("should finish all its queries when closed", function() {
+        var conn = new MDB();
+        return conn.connect().then(function() {
+            var qs = [
+                conn.query("SELECT 1"),
+                conn.query("SELECT 2"),
+                conn.query("SELECT 3")
+            ];
+            conn.close();
+            return Q.all(qs);
+        });
+    });
+
     it("should fail all queries on destroyed connection", function() {
         var conn = new MDB();
         conn.destroy();
@@ -176,6 +202,26 @@ describe("#Connection", function() {
             conn.query("SELECT 3")
         ]).should.be.rejected;
     });
+
+    it("should have the appropriate state at all times", function() {
+        var conn = new MDB();
+        conn.getState().should.equal("disconnected");
+        return conn.connect().then(function() {
+            conn.getState().should.equal("ready");
+            return conn.close();
+        }).then(function() {
+            conn.getState().should.equal("destroyed");
+        });
+    });
+
+    it("should give its appropriate environment on request", function() {
+        var conn = new MDB();
+        conn.connect();
+        return conn.env()
+            .should.eventually.be.an("object")
+            .that.has.property("monet_version")
+            .that.is.a("string");
+    });
 });
 
 describe("#Reconnect logic", function() {
@@ -183,7 +229,7 @@ describe("#Reconnect logic", function() {
     var MDB = getMDB();
 
     it("should finish query after reconnect", function() {
-        var conn = new MDB({testing: true});
+        var conn = new MDB({testing: true, debug: true, logger: noop});
         var query = conn.connect().then(function() {
             conn.mapiConnection.socketError("ECONNRESET");
             return conn.query("SELECT 'whatever' AS a");
@@ -213,7 +259,29 @@ describe("#Reconnect logic", function() {
                 try {
                     conn.mapiConnection.socketError("ECONNRESET");
                 } catch(e) {}
-                timeout = setTimeout(failNow, 100 + Math.round(notSoRandom()*300));
+                timeout = setTimeout(failNow, 200 + Math.round(notSoRandom()*300));
+            }
+            failNow();
+            return Q.all(qs).fin(function() {
+                if(timeout !== null) clearTimeout(timeout);
+            });
+        });
+    });
+
+    it("should give up and fail queries after reaching its limits", function() {
+        var conn = new MDB({testing: true, maxReconnects: 2, reconnectTimeout: 1, debug: true, logger: noop});
+        return conn.connect().then(function() {
+            var qs = [
+                conn.query("SELECT 1").should.be.rejected,
+                conn.query("SELECT 2").should.be.rejected,
+                conn.query("SELECT 3").should.be.rejected
+            ];
+            var timeout = null;
+            function failNow() {
+                try {
+                    conn.mapiConnection.socketError("ECONNRESET");
+                } catch(e) {}
+                timeout = setTimeout(failNow, 1);
             }
             failNow();
             return Q.all(qs).fin(function() {
