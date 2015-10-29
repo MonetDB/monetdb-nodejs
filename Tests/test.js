@@ -2,7 +2,7 @@ var chai = require("chai");
 var chaiAsPromised = require("chai-as-promised");
 var Q = require("q");
 
-chai.should();
+var should = chai.should();
 chai.use(chaiAsPromised);
 
 var mdb = require("../index.js");
@@ -241,9 +241,15 @@ describe("#Connection", function() {
             .that.has.property("monet_version")
             .that.is.a("string");
     });
+
+    it("should have the right aliases", function() {
+        var conn = new MDB();
+        conn.open.should.equal(conn.connect);
+        conn.request.should.equal(conn.query);
+        conn.disconnect.should.equal(conn.close);
+    });
 });
 
-/*
 describe("#Reconnect logic", function() {
     this.timeout(10000);
     var MDB = getMDB();
@@ -261,7 +267,7 @@ describe("#Reconnect logic", function() {
     });
 
     it("should finish many queries when reconnects occur in between", function() {
-        this.timeout(30000);
+        this.timeout(60000);
 
         var conn = new MDB({testing: true});
         return conn.connect().then(function() {
@@ -309,7 +315,7 @@ describe("#Reconnect logic", function() {
             });
         });
     });
-});*/
+});
 
 describe("#Regular querying", function() {
     this.timeout(10000);
@@ -686,5 +692,147 @@ describe("#Prepared queries", function() {
     it("should fail when too many question marks are in the query", function() {
         return conn.query("INSERT INTO foo VALUES (?, ?, ?, ?)", [2, 4.5, "s"])
             .should.be.rejected;
+    });
+});
+
+describe("#CallbackWrapper", function() {
+    var MDB = getMDB();
+
+    it("should wrap MonetDBConnection.connect", function(done) {
+        var conn1 = new MDB().getCallbackWrapper();
+        conn1.connect(function(err) {
+            try {
+                should.not.exist(err);
+            } catch(e) {
+                conn1.destroy();
+                return done(e);
+            }
+            var conn2 = new MDB({dbname: "nonexistent"}).getCallbackWrapper();
+            conn2.connect(function(err) {
+                try {
+                    should.exist(err);
+                    done();
+                } catch(e) {
+                    done(e);
+                }
+                conn1.destroy();
+                conn2.destroy();
+            })
+        });
+    });
+
+    it("should wrap succeeding MonetDBConnection.query and .request", function(done) {
+        var conn = new MDB().getCallbackWrapper();
+        conn.connect();
+        conn.query("SELECT 425", function(err, result) {
+            try {
+                should.not.exist(err);
+                result.should.have.property("data").that.deep.equals([[425]]);
+                done();
+            } catch(e) {
+                done(e);
+            }
+            conn.destroy();
+        });
+    });
+
+    it("should wrap failing MonetDBConnection.query and .request", function(done) {
+        var conn = new MDB().getCallbackWrapper();
+        conn.connect();
+        conn.query("SELECT will_not_work", function(err) {
+            try {
+                should.exist(err);
+                done();
+            } catch(e) {
+                done(e);
+            }
+            conn.destroy();
+        });
+    });
+
+    it("should wrap MonetDBConnection.prepare", function(done) {
+        var conn = new MDB().getCallbackWrapper();
+        conn.connect();
+        conn.prepare("SELECT * FROM sys.tables WHERE id > ?", function(err, prepResult) {
+            try {
+                should.not.exist(err);
+                prepResult.should.have.property("prepare").that.is.an("object");
+                prepResult.should.have.property("exec").that.is.a("function");
+                prepResult.should.have.property("release").that.is.a("function");
+            } catch(e) {
+                conn.destroy();
+                return done(e);
+            }
+            prepResult.exec([1], function(err, result) {
+                try {
+                    should.not.exist(err);
+                    result.should.have.property("rows").that.is.above(0);
+                } catch(e) {
+                    conn.destroy();
+                    return done(e);
+                }
+                prepResult.exec(["fail"], function(err) {
+                    try {
+                        should.exist(err);
+                        prepResult.release();
+                        done();
+                    } catch(e) {
+                        conn.destroy();
+                        done(e);
+                    }
+                });
+            })
+        });
+    });
+
+    it("should wrap MonetDBConnection.env", function(done) {
+        var conn = new MDB().getCallbackWrapper();
+        conn.connect();
+        return conn.env(function(err, result) {
+            try {
+                should.not.exist(err);
+                result.should.be.an("object").that.has.property("monet_version").that.is.a("string");
+                done();
+            } catch(e) {
+                done(e);
+            }
+            conn.destroy();
+        });
+    });
+
+    it("should wrap MonetDBConnection.close", function(done) {
+        var conn = new MDB().getCallbackWrapper();;
+        conn.connect();
+        conn.close(function(err) {
+            try {
+                should.not.exist(err);
+                done();
+            } catch(e) {
+                done(e);
+            }
+            conn.destroy();
+        });
+    });
+
+    it("should enable chaining on all callback based methods", function() {
+        var conn = new MDB().getCallbackWrapper();
+        ["connect", "query", "env", "close", "prepare"].forEach(function(chainMethod) {
+            conn[chainMethod]().should.equal(conn);
+        });
+    });
+
+    it("should simply link MonetDBConnection.option, .getState, and .destroy", function() {
+        var conn = new MDB();
+        var wrapper = conn.getCallbackWrapper();
+        ["option", "getState", "destroy"].forEach(function(method) {
+            conn[method].should.equal(wrapper[method]);
+        });
+    });
+
+    it("should have the right aliases", function() {
+        var conn = new MDB().getCallbackWrapper();
+        conn.open.should.equal(conn.connect);
+        conn.request.should.equal(conn.query);
+        conn.disconnect.should.equal(conn.close);
     });
 });
