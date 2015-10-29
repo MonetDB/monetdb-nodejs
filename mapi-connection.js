@@ -464,6 +464,9 @@ module.exports = function MapiConnection(options) {
                 _request('Xreply_size -1', _messageQueue);
                 _request('Xauto_commit 1', _messageQueue);
 
+                // Set the time zone interval, we do not check whether or not that succeeds.
+                _request(utils.packQuery("SET TIME ZONE INTERVAL '" + options.timezoneOffset + "' MINUTE"), _messageQueue);
+
                 // try to execute a simple query, and resolve/reject connection promise
                 return _request(utils.packQuery('SELECT 42'), _messageQueue).then(function () {
                     // At this point, the message queue should be empty, since 'select 42' was the

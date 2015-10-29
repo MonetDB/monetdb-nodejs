@@ -30,6 +30,11 @@ var optionDefinition = {
         type: 'string',
         dflt: 'sql'
     },
+    timezoneOffset: {
+        type: 'number',
+        dflt: new Date().getTimezoneOffset(), // offset in minutes
+        transform: parseInt
+    },
     maxReconnects: {
         type: 'number',
         dflt: 10,
@@ -242,12 +247,11 @@ module.exports = function(d) {
             return _options[option];
         };
 
-        // TODO: consider proxying a connection promise
-
         // proxy some methods
-        ["connect", "getState", "close", "destroy"].forEach(function(d) {
+        ['connect', 'getState', 'close', 'destroy'].forEach(function(d) {
             self[d] = self.mapiConnection[d];
         });
+
     }
     return MonetDBConnection;
 };

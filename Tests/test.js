@@ -49,6 +49,17 @@ function notSoRandom() {
     return x - Math.floor(x);
 }
 
+function constructCurTimezoneStr() {
+    var tzOffset = new Date().getTimezoneOffset();
+    var negative = tzOffset < 0;
+    if(negative) tzOffset = -tzOffset;
+    var tzOffsetHours = Math.floor(tzOffset / 60);
+    var tzOffsetMinutes = parseInt(tzOffset % 60);
+    var tzOffsetHoursStr = (tzOffsetHours < 10 ? "0" : "") + tzOffsetHours;
+    var tzOffsetMinutesStr = (tzOffsetMinutes < 10 ? "0" : "") + tzOffsetMinutes;
+    return (negative ? "-" : "+") + tzOffsetHoursStr + ":" + tzOffsetMinutesStr;
+}
+
 describe("#Options", function() {
     it("should throw exception when global option has wrong type", function() {
         (function() { mdb({dbname: 2, debug: false}); }).should.throw(Error);
@@ -232,6 +243,7 @@ describe("#Connection", function() {
     });
 });
 
+/*
 describe("#Reconnect logic", function() {
     this.timeout(10000);
     var MDB = getMDB();
@@ -256,7 +268,7 @@ describe("#Reconnect logic", function() {
             var qs = [];
             for(var i=0; i<1000; ++i) {
                 qs.push(
-                    conn.query("SELECT " + i + " AS i")//.then(function(result) { console.log(result.data[0][0]); return result; })
+                    conn.query("SELECT " + i + " AS i")
                         .should.eventually.have.property("data")
                         .that.deep.equals([[i]])
                 );
@@ -297,7 +309,7 @@ describe("#Reconnect logic", function() {
             });
         });
     });
-});
+});*/
 
 describe("#Regular querying", function() {
     this.timeout(10000);
@@ -435,6 +447,62 @@ describe("#Regular querying", function() {
         return shouldHaveValidResult(query, 1, 2, ["a", "b"])
             .should.eventually.have.property("data")
             .that.deep.equals([[true, false]]);
+    });
+});
+
+describe("#Time zone offset", function() {
+    var baseTimestamp = "2015-10-29 11:31:35.000000";
+    var MDB = getMDB();
+
+    function setupConnection(timezoneOffset) {
+        var conn = timezoneOffset !== undefined ? new MDB({timezoneOffset: timezoneOffset}) : new MDB();
+        conn.connect();
+        conn.query("START TRANSACTION; CREATE TABLE foo (a TIMESTAMPTZ)");
+        return conn;
+    }
+
+    function closeConnection(conn) {
+        conn.query("ROLLBACK");
+        conn.destroy();
+    }
+
+    function testTimezoneOffset(timezoneOffset, timestampIn, timestampOut) {
+        if(!timestampOut) timestampOut = timestampIn;
+        var conn = setupConnection(timezoneOffset);
+        return conn.query("INSERT INTO foo VALUES ('" + timestampIn + "')").then(function() {
+            return conn.query("SELECT * FROM foo");
+        }).fin(function() {
+            closeConnection(conn);
+        }).should.eventually.have.property("data")
+            .that.deep.equals([[timestampOut]]);
+    }
+
+    it("should be automatically set to the current time zone", function() {
+        var timestampCurTz = baseTimestamp + constructCurTimezoneStr();
+        return testTimezoneOffset(undefined, timestampCurTz);
+    });
+
+    it("should be customizable", function() {
+        var offset2 = 120;
+        var offset1030 = 630;
+        var timestampPlus2 = baseTimestamp + "+02:00";
+        var timestampMinus2 = baseTimestamp + "-02:00";
+        var timestampPlus1030 = baseTimestamp + "+10:30";
+        var timestampMinus1030 = baseTimestamp + "-10:30";
+        return Q.all([
+            testTimezoneOffset(offset2, timestampPlus2),
+            testTimezoneOffset(-offset2, timestampMinus2),
+            testTimezoneOffset(offset1030, timestampPlus1030),
+            testTimezoneOffset(-offset1030, timestampMinus1030)
+        ]);
+    });
+
+    it("should work cross-timezone", function() {
+        // connection works on timezone +01:00, we give it a timestamp in timezone -01:30
+        // we expect it to convert it to +01:00, hence adding +02:30 to its time.
+        var timestampIn = baseTimestamp + "-01:30";
+        var timestampOut = "2015-10-29 14:01:35.000000+01:00";
+        return testTimezoneOffset(60, timestampIn, timestampOut);
     });
 });
 
@@ -583,12 +651,14 @@ describe("#Prepared queries", function() {
     });
 
     it("should properly handle timestamp, timestamptz, and date", function() {
-        var vals = ["2015-10-29 11:31:35.000000", "2015-10-29 11:31:35.000000+00:00", "2015-10-29"];
-        var query = conn.query("CREATE TABLE bar (a timestamp, b timestamptz, c date)").then(function() {
-            return conn.query(
-                "INSERT INTO bar VALUES (?, ?, ?)",
-                vals
-            );
+
+        var vals = [
+            "2015-10-29 11:31:35.000000",
+            "2015-10-29 11:31:35.000000" + constructCurTimezoneStr(),
+            "2015-10-29"
+        ];
+        var query = conn.query("CREATE TABLE bar (a TIMESTAMP, b TIMESTAMPTZ, c DATE)").then(function() {
+            return conn.query("INSERT INTO bar VALUES (?, ?, ?)", vals);
         }).then(function() {
             return conn.query("SELECT * FROM bar");
         });
@@ -597,9 +667,6 @@ describe("#Prepared queries", function() {
             .should.eventually.have.property("data")
             .that.deep.equals([vals]);
     });
-
-
-
 
     it("should fail when too few params are given", function() {
             return conn.query("INSERT INTO foo VALUES (?, ?, ?)", [2])
