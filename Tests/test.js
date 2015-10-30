@@ -314,7 +314,7 @@ describe("#Reconnect logic", function() {
     });
 
     it("should finish many queries when reconnects occur in between", function() {
-        this.timeout(60000);
+        this.timeout(300000);
 
         var conn = new MDB({testing: true});
         return conn.connect().then(function() {
