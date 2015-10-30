@@ -10,7 +10,7 @@ var mdb = require("../index.js");
 function noop() {}
 
 function getMDB() {
-    return mdb({debug: false, dbname: "test"});
+    return mdb({warnings: false, dbname: "test"});
 }
 
 function shouldHaveValidResult(query, nrRows, nrCols, colNames) {
@@ -64,57 +64,57 @@ describe("#Options", function() {
     describe("##Global/Local options", function() {
         it("should throw exception when global option has wrong type", function () {
             (function () {
-                mdb({dbname: 2, debug: false});
+                mdb({dbname: 2, warnings: false});
             }).should.throw(Error);
         });
 
         it("should throw exception when local option has wrong type", function () {
             (function () {
-                new (mdb({debug: false}))({dbname: 2});
+                new (mdb({warnings: false}))({dbname: 2});
             }).should.throw(Error);
         });
 
         it("should not throw exception when global required options are missing", function () {
             (function () {
-                mdb({debug: false});
+                mdb({warnings: false});
             }).should.not.throw(Error);
         });
 
         it("should throw exception when local required option is missing", function () {
             (function () {
-                new (mdb({debug: false}))();
+                new (mdb({warnings: false}))();
             }).should.throw(Error);
         });
 
         it("should not throw exception when local required option was given globally", function () {
             (function () {
-                new (mdb({dbname: "test", debug: false}))();
+                new (mdb({dbname: "test", warnings: false}))();
             }).should.not.throw(Error);
         });
 
         it("should use default if both global and local are not given", function () {
-            new (mdb({dbname: "test", debug: false}))()
+            new (mdb({dbname: "test", warnings: false}))()
                 .option("user").should.equal("monetdb");
         });
 
         it("should use global if global is given but local isn't", function () {
-            new (mdb({dbname: "test", debug: false, user: "custom"}))()
+            new (mdb({dbname: "test", warnings: false, user: "custom"}))()
                 .option("user").should.equal("custom");
         });
 
         it("should use local if both global and local are given", function () {
-            new (mdb({dbname: "test", debug: false, user: "custom"}))({user: "other"})
+            new (mdb({dbname: "test", warnings: false, user: "custom"}))({user: "other"})
                 .option("user").should.equal("other");
         });
 
         it("should use local if only local is given", function () {
-            new (mdb({dbname: "test", debug: false}))({user: "other"})
+            new (mdb({dbname: "test", warnings: false}))({user: "other"})
                 .option("user").should.equal("other");
         });
     });
 
-    describe("#MonetDBConnection.option", function() {
-        var conn = new (mdb({dbname: "test", debug: false}))();
+    describe("##MonetDBConnection.option", function() {
+        var conn = new (mdb({dbname: "test", warnings: false}))();
         it("should throw exception on getting unknown option", function () {
             (function () {
                 conn.option("veryinvalidoption");
@@ -154,18 +154,17 @@ describe("#Logging", function() {
     this.timeout(10000);
 
     var calls;
-    function mylogger() { ++calls; }
-    function myDebugFn(logger, type) { if(type == "warn") ++calls; }
+    function increaseCalls() { ++calls; }
 
     it("should give warning for unrecognized options when debug is set to true", function() {
         calls = 0;
-        new (mdb({debugFn: myDebugFn}))({dbname: "test", hopefullyNotAnOption: 1});
+        new (mdb({warningFn: increaseCalls}))({dbname: "test", hopefullyNotAnOption: 1});
         return calls.should.be.above(0);
     });
 
     it("should be done at least once for debug messages during connect", function() {
         calls = 0;
-        var conn = new (mdb({dbname: "test", logger: mylogger}))();
+        var conn = new (mdb({dbname: "test", logger: increaseCalls, warnings: false, debug: true}))();
         return conn.connect().fin(function() {
             calls.should.be.above(0);
         });
@@ -173,7 +172,7 @@ describe("#Logging", function() {
 
     it("should be done at least once for debugMapi messages during connect", function() {
         calls = 0;
-        var conn = new (mdb({dbname: "test", logger: mylogger, debug: false, debugMapi: true}))();
+        var conn = new (mdb({dbname: "test", logger: increaseCalls, warnings: false, debugMapi: true}))();
         return conn.connect().fin(function() {
             calls.should.be.above(0);
         });
@@ -181,14 +180,14 @@ describe("#Logging", function() {
 
     it("should be done at least once for debugRequests messages during connect", function() {
         calls = 0;
-        var conn = new (mdb({dbname: "test", logger: mylogger, debug: false, debugRequests: true}))();
+        var conn = new (mdb({dbname: "test", logger: increaseCalls, warnings: false, debugRequests: true}))();
         return conn.connect().fin(function() {
             calls.should.be.above(0);
         });
     });
 
     it("should be done at least once for debugRequests messages on failing query", function() {
-        var conn = new (mdb({dbname: "test", logger: mylogger, debug: false, debugRequests: true}))();
+        var conn = new (mdb({dbname: "test", logger: increaseCalls, warnings: false, debugRequests: true}))();
         return conn.connect().then(function() {
             calls = 0;
             return conn.query("WILL NOT PASS");
@@ -199,7 +198,7 @@ describe("#Logging", function() {
 
     it("should give warning when queries are issued before a call to connect", function() {
         calls = 0;
-        var conn = new (mdb({debugFn: myDebugFn}))({dbname: "test"});
+        var conn = new (mdb({warningFn: increaseCalls}))({dbname: "test"});
         conn.query("SELECT 42");
         conn.connect();
         return calls.should.be.above(0);

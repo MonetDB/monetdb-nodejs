@@ -4,8 +4,12 @@
 
 'use strict';
 
-module.exports.debug = function(logger, type, msg) {
-    logger('DEBUG [' + type.toUpperCase() + '] '+ msg);
+module.exports.debug = function(logger, msg) {
+    logger('DEBUG ' + msg);
+};
+
+module.exports.warning = function(logger, msg) {
+    logger('WARNING ' + msg);
 };
 
 module.exports.debugRequest = function(logger, message, error, result) {

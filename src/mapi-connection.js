@@ -38,7 +38,7 @@ module.exports = function MapiConnection(options) {
 
     function _setState(state) {
         if(options.debug) {
-            options.debugFn(options.logger, 'info', 'Setting state to ' + state + '..');
+            options.debugFn(options.logger, 'Setting state to ' + state + '..');
         }
         _state = state;
     }
@@ -83,7 +83,7 @@ module.exports = function MapiConnection(options) {
             }
 
             if (options.debug) {
-                options.debugFn(options.logger, 'info', 'Writing ' + bs + ' bytes, final=' + final);
+                options.debugFn(options.logger, 'Writing ' + bs + ' bytes, final=' + final);
             }
 
             var hdrbuf = new Buffer(2);
@@ -110,7 +110,7 @@ module.exports = function MapiConnection(options) {
             data = data.slice(2);
         }
         if (options.debug) {
-            options.debugFn(options.logger, 'info', 'Reading ' + _readLeftOver + ' bytes, final=' + _readFinal);
+            options.debugFn(options.logger, 'Reading ' + _readLeftOver + ' bytes, final=' + _readFinal);
         }
 
         /* what is in the buffer is not necessary the entire block */
@@ -356,8 +356,8 @@ module.exports = function MapiConnection(options) {
     function _reconnect(attempt) {
         if(attempt > options.maxReconnects) {
             // reached limit
-            if (options.debug) {
-                options.debugFn(options.logger,  'info', 'Attempted to reconnect for ' + (attempt-1) + ' times.. We are giving up now.');
+            if (options.warnings) {
+                options.warningFn(options.logger, 'Attempted to reconnect for ' + (attempt-1) + ' times.. We are giving up now.');
             }
             return self.destroy('Failed to connect to MonetDB server');
         }
@@ -382,17 +382,17 @@ module.exports = function MapiConnection(options) {
         _destroySocket();
 
 
-        if(options.debug) {
-            options.debugFn(options.logger, 'warn', 'Reconnect attempt ' + attempt + '/' + options.maxReconnects + ' in ' + (options.reconnectTimeout/1000) + ' sec..');
+        if(options.warnings) {
+            options.warningFn(options.logger, 'Reconnect attempt ' + attempt + '/' + options.maxReconnects + ' in ' + (options.reconnectTimeout/1000) + ' sec..');
         }
         setTimeout(function() {
             self.connect().then(function() {
-                if(options.debug) {
-                    options.debugFn(options.logger, 'info', 'Reconnection succeeded.');
+                if(options.warnings) {
+                    options.warningFn(options.logger, 'Reconnection succeeded.');
                 }
             }, function(err) {
-                if(options.debug) {
-                    options.debugFn(options.logger, 'error', 'Could not connect to MonetDB: ' + err);
+                if(options.warnings) {
+                    options.warningFn(options.logger, 'Could not connect to MonetDB: ' + err);
                 }
                 _messageQueue = [];
                 _reconnect(attempt+1);
@@ -409,8 +409,8 @@ module.exports = function MapiConnection(options) {
             // before the net.connect callback
             _connectDeferred.reject(new Error(err));
         }
-        if(options.debug) {
-            options.debugFn(options.logger, 'warn', 'Socket error occurred: ' + err.toString());
+        if(options.warnings) {
+            options.warningFn(options.logger, 'Socket error occurred: ' + err.toString());
         }
     }
     function _onClose(hadError) {
@@ -512,8 +512,8 @@ module.exports = function MapiConnection(options) {
                     _resumeMsgLoop();
                     _connectDeferred.resolve();
                 }, function (err) {
-                    if (options.debug) {
-                        options.debugFn(options.logger, 'error', 'Error on executing test query "SELECT 42": ' + err);
+                    if (options.warnings) {
+                        options.warningFn(options.logger, 'Error on executing test query "SELECT 42": ' + err);
                     }
                     _connectDeferred.reject(new Error('Could not connect to MonetDB'));
                 }).done();
@@ -527,8 +527,8 @@ module.exports = function MapiConnection(options) {
     };
 
     self.request = function(message) {
-        if(options.debug && !_connectDeferred) {
-            options.debugFn(options.logger, "warn", "Request received before a call to connect. This request will not be processed until you have called connect.");
+        if(options.warnings && !_connectDeferred) {
+            options.warningFn(options.logger, "Request received before a call to connect. This request will not be processed until you have called connect.");
         }
         return _request(message, _state == 'disconnected' ? _messageQueueDisconnected : _messageQueue);
     };

@@ -62,9 +62,20 @@ var optionDefinition = {
         dflt: console.log,
         changeable: true
     },
-    debug: {
+    warnings: {
         type: 'boolean',
         dflt: true,
+        transform: parseBool,
+        changeable: true
+    },
+    warningFn: {
+        type: 'function',
+        dflt: utils.warning,
+        changeable: true
+    },
+    debug: {
+        type: 'boolean',
+        dflt: false,
         transform: parseBool,
         changeable: true
     },
@@ -146,10 +157,10 @@ function parseOptions(opts, globalOpts) {
     }, {});
 
     // report any unrecognized options if debug mode is set on the new options object
-    if(result.debug) {
+    if(result.warnings) {
         Object.keys(opts).forEach(function(option) {
             if(result[option] === undefined) {
-                result.debugFn(result.logger, 'warn', 'Unrecognized option "' + option + '"');
+                result.warningFn(result.logger, 'Unrecognized option "' + option + '"');
             }
         });
     }
