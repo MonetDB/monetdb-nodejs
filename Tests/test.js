@@ -61,44 +61,92 @@ function constructCurTimezoneStr() {
 }
 
 describe("#Options", function() {
-    it("should throw exception when global option has wrong type", function() {
-        (function() { mdb({dbname: 2, debug: false}); }).should.throw(Error);
+    describe("##Global/Local options", function() {
+        it("should throw exception when global option has wrong type", function () {
+            (function () {
+                mdb({dbname: 2, debug: false});
+            }).should.throw(Error);
+        });
+
+        it("should throw exception when local option has wrong type", function () {
+            (function () {
+                new (mdb({debug: false}))({dbname: 2});
+            }).should.throw(Error);
+        });
+
+        it("should not throw exception when global required options are missing", function () {
+            (function () {
+                mdb({debug: false});
+            }).should.not.throw(Error);
+        });
+
+        it("should throw exception when local required option is missing", function () {
+            (function () {
+                new (mdb({debug: false}))();
+            }).should.throw(Error);
+        });
+
+        it("should not throw exception when local required option was given globally", function () {
+            (function () {
+                new (mdb({dbname: "test", debug: false}))();
+            }).should.not.throw(Error);
+        });
+
+        it("should use default if both global and local are not given", function () {
+            new (mdb({dbname: "test", debug: false}))()
+                .option("user").should.equal("monetdb");
+        });
+
+        it("should use global if global is given but local isn't", function () {
+            new (mdb({dbname: "test", debug: false, user: "custom"}))()
+                .option("user").should.equal("custom");
+        });
+
+        it("should use local if both global and local are given", function () {
+            new (mdb({dbname: "test", debug: false, user: "custom"}))({user: "other"})
+                .option("user").should.equal("other");
+        });
+
+        it("should use local if only local is given", function () {
+            new (mdb({dbname: "test", debug: false}))({user: "other"})
+                .option("user").should.equal("other");
+        });
     });
 
-    it("should throw exception when local option has wrong type", function() {
-        (function() { new (mdb({debug: false}))({dbname: 2}); }).should.throw(Error);
-    });
+    describe("#MonetDBConnection.option", function() {
+        var conn = new (mdb({dbname: "test", debug: false}))();
+        it("should throw exception on getting unknown option", function () {
+            (function () {
+                conn.option("veryinvalidoption");
+            }).should.throw(Error);
+        });
 
-    it("should not throw exception when global required options are missing", function() {
-        (function() { mdb({debug: false}); }).should.not.throw(Error);
-    });
+        it("should throw exception on setting unknown option", function () {
+            (function () {
+                conn.option("veryinvalidoption", "value");
+            }).should.throw(Error);
+        });
 
-    it("should throw exception when local required option is missing", function() {
-        (function() { new (mdb({debug: false}))(); }).should.throw(Error);
-    });
+        it("should properly get option", function () {
+            conn.option("dbname").should.equal("test");
+        });
 
-    it("should not throw exception when local required option was given globally", function() {
-        (function() { new (mdb({dbname: "test", debug: false}))(); }).should.not.throw(Error);
-    });
+        it("should throw exception on setting unchangeable option", function() {
+            (function () {
+                conn.option("dbname", "otherdb");
+            }).should.throw(Error);
+        });
 
-    it("should use default if both global and local are not given", function() {
-        new (mdb({dbname: "test", debug: false}))()
-            .option("user").should.equal("monetdb");
-    });
+        it("should throw exception on setting option with wrong type", function() {
+            (function () {
+                conn.option("maxReconnects", "whatever");
+            }).should.throw(Error);
+        });
 
-    it("should use global if global is given but local isn't", function() {
-        new (mdb({dbname: "test", debug: false, user: "custom"}))()
-            .option("user").should.equal("custom");
-    });
-
-    it("should use local if both global and local are given", function() {
-        new (mdb({dbname: "test", debug: false, user: "custom"}))({user: "other"})
-            .option("user").should.equal("other");
-    });
-
-    it("should use local if only local is given", function() {
-        new (mdb({dbname: "test", debug: false}))({user: "other"})
-            .option("user").should.equal("other");
+        it("should properly set option", function() {
+            conn.option("reconnectTimeout", 5000);
+            conn.option("reconnectTimeout").should.equal(5000);
+        });
     });
 });
 

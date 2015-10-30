@@ -42,48 +42,58 @@ var optionDefinition = {
     maxReconnects: {
         type: 'number',
         dflt: 10,
-        transform: parseInt
+        transform: parseInt,
+        changeable: true
     },
     reconnectTimeout: {
         type: 'number',
         dflt: 2000,
-        transform: parseInt
+        transform: parseInt,
+        changeable: true
     },
     prettyResult: {
         type: 'boolean',
         dflt: false,
-        transform: parseBool
+        transform: parseBool,
+        changeable: true
     },
     logger: {
         type: 'function',
-        dflt: console.log
+        dflt: console.log,
+        changeable: true
     },
     debug: {
         type: 'boolean',
         dflt: true,
-        transform: parseBool
+        transform: parseBool,
+        changeable: true
     },
     debugFn: {
         type: 'function',
-        dflt: utils.debug
+        dflt: utils.debug,
+        changeable: true
     },
     debugRequests: {
         type: 'boolean',
         dflt: false,
-        transform: parseBool
+        transform: parseBool,
+        changeable: true
     },
     debugRequestFn: {
         type: 'function',
-        dflt: utils.debugRequest
+        dflt: utils.debugRequest,
+        changeable: true
     },
     debugMapi: {
         type: 'boolean',
         dflt: false,
-        transform: parseBool
+        transform: parseBool,
+        changeable: true
     },
     debugMapiFn: {
         type: 'function',
-        dflt: utils.debugMapi
+        dflt: utils.debugMapi,
+        changeable: true
     },
     testing: {
         type: 'boolean',
@@ -276,8 +286,13 @@ module.exports = function(d) {
             });
         };
 
-        self.option = function(option) {
-            return _options[option];
+        self.option = function(option, val) {
+            var def = optionDefinition[option];
+            if(!def) throw new Error('Option "' + option + '" does not exist');
+            if(arguments.length == 1) return _options[option];
+            if(!def.changeable) throw new Error('Option "' + option + '" can not be changed. Please set this option on a new connection.');
+            if(typeof(val) != def.type) throw new Error('Option "' + option + '" should be of type "' + def.type + '"');
+            _options[option] = def.transform ? def.transform(val) : val;
         };
 
         // proxy some methods
