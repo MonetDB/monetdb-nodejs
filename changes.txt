@@ -15,4 +15,6 @@ TESTCASES
 
 
 NOTES:
-- releasefun of MonetDBConnection.prepare does not return a promise
+- releasefun of MonetDBConnection.prepare does not return a promise, hence completion can not be checked
+- null values in query result are now represented by javascript null instead of undefined,
+since null could never be the result of an actual value.

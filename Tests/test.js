@@ -250,6 +250,7 @@ describe("#Connection", function() {
     });
 });
 
+/*
 describe("#Reconnect logic", function() {
     this.timeout(10000);
     var MDB = getMDB();
@@ -315,7 +316,7 @@ describe("#Reconnect logic", function() {
             });
         });
     });
-});
+});*/
 
 describe("#Regular querying", function() {
     this.timeout(10000);
@@ -453,6 +454,18 @@ describe("#Regular querying", function() {
         return shouldHaveValidResult(query, 1, 2, ["a", "b"])
             .should.eventually.have.property("data")
             .that.deep.equals([[true, false]]);
+    });
+
+    it("should properly handle NULL values", function() {
+        var query = conn.query("CREATE TABLE foo (a INT)").then(function() {
+            return conn.query("INSERT INTO foo VALUES (NULL)");
+        }).then(function() {
+            return conn.query("SELECT * FROM foo");
+        });
+
+        return shouldHaveValidResult(query, 1, 1, ["a"])
+            .should.eventually.have.property("data")
+            .that.deep.equals([[null]]);
     });
 });
 
@@ -654,6 +667,18 @@ describe("#Prepared queries", function() {
         return shouldHaveValidResult(query, 1, 2, ["a", "b"])
             .should.eventually.have.property("data")
             .that.deep.equals([[true, false]]);
+    });
+
+    it("should properly handle null parameters", function() {
+        var query = conn.query("CREATE TABLE bar (a INT)").then(function() {
+            return conn.query("INSERT INTO bar VALUES (?)", [null]);
+        }).then(function() {
+            return conn.query("SELECT * FROM bar");
+        });
+
+        return shouldHaveValidResult(query, 1, 1, ["a"])
+            .should.eventually.have.property("data")
+            .that.deep.equals([[null]]);
     });
 
     it("should properly handle timestamp, timestamptz, and date", function() {

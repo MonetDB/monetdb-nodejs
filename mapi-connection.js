@@ -253,7 +253,7 @@ module.exports = function MapiConnection(options) {
                     case 'INTOKEN':
                         if (chr == ',' || curPos == line.length - 2) {
                             if (curtok == 'NULL') {
-                                resultline.push(undefined);
+                                resultline.push(null);
 
                             } else {
                                 switch(types[cCol]) {
