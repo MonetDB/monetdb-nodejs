@@ -250,7 +250,6 @@ describe("#Connection", function() {
     });
 });
 
-/*
 describe("#Reconnect logic", function() {
     this.timeout(10000);
     var MDB = getMDB();
@@ -316,7 +315,7 @@ describe("#Reconnect logic", function() {
             });
         });
     });
-});*/
+});
 
 describe("#Regular querying", function() {
     this.timeout(10000);
