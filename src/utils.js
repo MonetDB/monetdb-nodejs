@@ -1,3 +1,7 @@
+/**
+ * Author: Robin Cijvat <robin.cijvat@monetdbsolutions.com>
+ */
+
 'use strict';
 
 module.exports.debug = function(logger, type, msg) {

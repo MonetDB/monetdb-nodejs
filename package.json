@@ -6,20 +6,19 @@
   "scripts": {
     "test": "`npm bin`/mocha Tests/test.js",
     "coverage": "`npm bin`/istanbul cover `npm bin`/_mocha --report lcovonly -- -R spec Tests/test.js",
-    "coveralls": "npm run-script coverage && node node_modules/coveralls/bin/coveralls.js < coverage/lcov.info",
-    "docs": "jsdoc2md index.js > README.md && jsdoc2md mapi-connection.js > README.mapi-connection.md"
+    "coveralls": "npm run-script coverage && node node_modules/coveralls/bin/coveralls.js < coverage/lcov.info"
   },
   "keywords": [
     "monetdb"
   ],
   "author": {
-    "name": "Hannes Mühleisen",
-    "email": "hannes@cwi.nl"
+    "name": "Robin Cijvat",
+    "email": "robin.cijvat@monetdbsolutions.com"
   },
   "contributors": [
     {
-      "name": "Robin Cijvat",
-      "email": "robin.cijvat@monetdbsolutions.com"
+      "name": "Hannes Mühleisen",
+      "email": "hannes@cwi.nl"
     }
   ],
   "repository": {

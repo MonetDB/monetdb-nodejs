@@ -1,3 +1,7 @@
+/**
+ * Author: Robin Cijvat <robin.cijvat@monetdbsolutions.com>
+ */
+
 'use strict';
 
 var net = require('net');
@@ -56,6 +60,8 @@ module.exports = function MapiConnection(options) {
     }
 
     /**
+     * <hannes@cwi.nl>
+     *
      * Send a packaged message
      *
      * @param message An object containing a message property and a deferred property
@@ -87,6 +93,14 @@ module.exports = function MapiConnection(options) {
         }
     }
 
+    /**
+     * <hannes@cwi.nl>
+     *
+     * Read incoming data and construct the original messages from it
+     *
+     * @param data Data that follows from a net.socket data event
+     * @private
+     */
     function _handleData(data) {
         /* we need to read a header obviously */
         if (_readLeftOver == 0) {
@@ -124,6 +138,8 @@ module.exports = function MapiConnection(options) {
     }
 
     /**
+     * <hannes@cwi.nl>
+     *
      * Whenever a full response is received from the server, this response is passed to
      * this function. The main idea of this function is that it sets the object state to
      * ready as soon as the server let us know that the authentication succeeded.
@@ -192,6 +208,16 @@ module.exports = function MapiConnection(options) {
         _nextMessage();
     }
 
+    /**
+     * <hannes@cwi.nl>
+     *
+     * Parse a response that was reconstructed from the net.socket stream.
+     *
+     * @param msg Reconstructed message
+     * @returns a response structure, see documentation
+     * @private
+     */
+
     function _parseResponse(msg) {
         var lines = msg.split('\n');
         var resp = {};
@@ -229,6 +255,13 @@ module.exports = function MapiConnection(options) {
         return resp;
     }
 
+    /**
+     * <hannes@cwi.nl>
+     *
+     * Parse the tuples part of a server response.
+     *
+     * @private
+     */
     function _parseTuples(types, lines) {
         var state = 'INCRAP';
         var resultarr = [];
