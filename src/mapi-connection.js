@@ -202,7 +202,7 @@ module.exports = function MapiConnection(options) {
         }
 
         else {
-            _curMessage.deferred.resolve({});
+            _curMessage && _curMessage.deferred.resolve({});
         }
 
         _nextMessage();

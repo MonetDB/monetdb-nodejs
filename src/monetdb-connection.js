@@ -238,7 +238,7 @@ module.exports = function(d) {
             });
         };
 
-        self.prepare = function(query) {
+        self.prepare = function(query, prettyResult) {
             if (query.toUpperCase().trim().substring(0,7) != 'PREPARE')
                 query = 'PREPARE ' + query;
             return self.mapiConnection.request(utils.packQuery(query)).then(function(result) {
@@ -276,7 +276,7 @@ module.exports = function(d) {
                         return s;
                     }).join(', ');
                     var execquery = 'EXEC ' + result.queryid + '(' + quoted + ')';
-                    return self.mapiConnection.request(utils.packQuery(execquery));
+                    return self.query(execquery, prettyResult);
                 }
 
                 function releasefun() {
