@@ -274,7 +274,7 @@ Alias for [MonetDBConnection.connect](#mdbconnection_connect).
 Issue a query against the database. For a simple example, [see here](#example).
 
 | Argument      | Type          | Required       | Description     |
-| :------------ | : ----------- | :------------- | :-------------- |
+| :------------ | :------------ | :------------- | :-------------- |
 | query         | string        | yes            | The query you want to run. In case language is sql, this should be a valid SQL query.
 | params        | array         | no             | If this array is given, a prepared statement will be used under the hood. Very useful if you want to easily protect against SQL injection.
 | prettyResult  | boolean       | no             | If this is set to true, the query result will be prettified. If not given, the default from the options is used. See the [pretty result section](#pretty) for more info.
@@ -322,7 +322,7 @@ Alias for [MonetDBConnection.query](#mdbconnection_query).
 Prepares a query for repeated execution, and generates execution and release convenience functions.
 
 | Argument      | Type          | Required       | Description     |
-| :------------ | : ----------- | :------------- | :-------------- |
+| :------------ | :------------ | :------------- | :-------------- |
 | query         | string        | yes            | The query that has to be prepared. If it does not start with prepare (case insensitive), 'PREPARE ' will be prepended to the query.
 | prettyResult  | boolean       | no             | If this is set to true, the exec function will return prettified results. If not given, the default from the options is used. See the [pretty result section](#pretty) for more info.
                                                    
@@ -384,7 +384,7 @@ Will output:
 Get or set an option.
 
 | Argument      | Type                | Required       | Description     |
-| :------------ | : ----------------- | :------------- | :-------------- |
+| :------------ | :------------------ | :------------- | :-------------- |
 | name          | string              | yes            | The name of the option. See the [option section](#options) for the recognized options.
 | value         | depending on option | no             | If this argument is provided, it is assumed that you want to set the option to this argument. Note that setting options is not possible for connection options. The connection options are mentioned in the [option section](#options).
 
@@ -436,7 +436,7 @@ Alias for [MonetDBConnection.close](#mdbconnection_close).
 Fails all queries currently in the queue (including the one that is currently being executed), and destroys the socket.
 
 | Argument      | Type                | Required       | Description     |
-| :------------ | : ----------------- | :------------- | :-------------- |
+| :------------ | :------------------ | :------------- | :-------------- |
 | msg           | string              | no             | An error message that will be sent to all queries that are rejected. If none is given, a default error message is sent. 
 
 
@@ -534,7 +534,7 @@ In case you want to overwrite the default log functions, here are the function s
 ### options.warningFn(logger, msg)
 
 | Argument      | Type                 | Description     |
-| :------------ | : ------------------ | :-------------- |
+| :------------ | :------------------- | :-------------- |
 | logger        | function             | The logger that is used, which defaults to console.log but can be specified through the [options](#options).
 | msg           | string               | The message to write to the provided logger.
 
@@ -544,7 +544,7 @@ Same as options.warningFn
 ### options.debugRequestFn(logger, request, error, result)
 
 | Argument      | Type                 | Description     |
-| :------------ | : ------------------ | :-------------- |
+| :------------ | :------------------- | :-------------- |
 | logger        | function             | The logger that is used, which defaults to console.log but can be specified through the [options](#options).
 | request       | string               | The request message (SQL query string in case this request is an SQL query)
 | error         | Error|null           | If this request failed, this argument contains the error that was thrown. Otherwise, this argument will be null.
