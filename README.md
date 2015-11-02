@@ -432,7 +432,7 @@ Alias for [MonetDBConnection.close](#mdbconnection_close).
 
 
 <a name="mdbconnection_destroy"></a>
-### .destroy(msg)
+### .destroy(\[msg\])
 Fails all queries currently in the queue (including the one that is currently being executed), and destroys the socket.
 
 | Argument      | Type                | Required       | Description     |
@@ -547,16 +547,16 @@ Same as options.warningFn
 | :------------ | : ------------------ | :-------------- |
 | logger        | function             | The logger that is used, which defaults to console.log but can be specified through the [options](#options).
 | request       | string               | The request message (SQL query string in case this request is an SQL query)
-| error         | Error object or null | If this request failed, this argument contains the error that was thrown. Otherwise, this argument will be null.
-| result        | Object or null       | If this request passed, this argument contains the [resulting object](#mdbconnection_query).
+| error         | Error|null           | If this request failed, this argument contains the error that was thrown. Otherwise, this argument will be null.
+| result        | Object|null          | If this request passed, this argument contains the [resulting object](#mdbconnection_query).
 
 ### options.debugMapiFn(logger, type, msg)
 
-| Argument      | Type                 | Description     |
-| :------------ | : ------------------ | :-------------- |
-| logger        | function             | The logger that is used, which defaults to console.log but can be specified through the [options](#options).
-| type          | string               | Either 'TX' for transmitted messages, or 'RX' for received messages.
-| msg           | string               | The string that was communicated over the socket.
+| Argument      | Type                 | Description                                                                                                  |
+| :------------ | : ------------------ | :----------------------------------------------------------------------------------------------------------- |
+| logger        | function             | The logger that is used, which defaults to console.log but can be specified through the [options](#options). |
+| type          | string               | Either 'TX' for transmitted messages, or 'RX' for received messages.                                         |
+| msg           | string               | The string that was communicated over the socket.                                                            |
     
 
 
