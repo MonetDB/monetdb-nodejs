@@ -14,6 +14,7 @@ This NodeJS module provides an easy and powerful way to use MonetDB inside your 
 
 <a name="example"></a>
 ## Example usage
+
 ```javascript
 var MDB = require('monetdb')();
 
@@ -87,6 +88,7 @@ See [the section on pretty results](#pretty) for more information.
 If you want to execute raw queries, you need to do a request to the
 [MapiConnection object](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/MapiConnection.md) object that is
 contained within every MonetDBConnection object:
+
 ```javascript
 var MDB = require('monetdb')();
 
@@ -94,6 +96,7 @@ var conn = new MDB(options);
 conn.connect();
 conn.mapiConnection.request('Xreply_size -1')
 ```
+
 Note: if you do not know what raw queries (like the above example) are, you will probably not need them. You can stick to
 using normal SQL queries.
 
@@ -224,6 +227,7 @@ Options provided solely for testing.
 # MonetDBConnection
 
 Getting a MonetDBConnection object is easy:
+
 ```javascript
 var MDB = require('monetdb')();
 
@@ -256,6 +260,8 @@ Just in case you are wondering,
 
 <a name="mdbconnection_connect"></a>
 ### .connect()
+*This method links to [MapiConnection.connect](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/MapiConnection.md#connect)*
+
 Open the connection to the MonetDB server.
 
 Returns a promise that resolves when the connection succeeded, and gets rejected with an error message otherwise.
@@ -335,6 +341,7 @@ Returns a promise that resolves with an object with the following properties:
 | release                | function     | A parameterless function that you can call when you want to free the resources used by the prepared statement. After calling this function, calls to the exec function will fail. This function **does not** return anything. You cannot be notified of whether or not this worked.
 
 Example:
+
 ```javascript
 var MDB = require('monetdb')();
 
@@ -359,6 +366,7 @@ conn.prepare('SELECT * FROM mytable WHERE c < ? AND d > ?').then(function(prepRe
 <a name="mdbconnection_env"></a>
 ### .env()
 Get the connection environment. Example:
+
 ```javascript
 var MDB = require('monetdb')();
 
@@ -369,7 +377,9 @@ conn.env().then(function(env) {
     console.log(env);
 });
 ```
+
 Will output:
+
 ```
 {
 	"gdk_dbpath": "/home/robin/dbfarm/test",
@@ -396,6 +406,7 @@ If the second argument is omitted, the value of the option is returned.
 <a name="mdbconnection_getstate"></a>
 ### .getState()
 *This method links to [MapiConnection.getState](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/MapiConnection.md#getstate)*
+
 Get the current state of the connection. For normal usage you will never need to use this.
 
 Returns one of the following state strings:
@@ -413,6 +424,8 @@ Regardless of the return value of this method, you can safely issue queries to t
 
 <a name="mdbconnection_close"></a>
 ### .close()
+*This method links to [MapiConnection.close](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/MapiConnection.md#close)*
+
 Finishes all the current queries in the queue, and then destroys the socket by calling [MonetDBConnection.destroy](#mdbconnection_destroy).
 After closing a connection, it cannot be reopened. If reopening is desired, you should create a [new MonetDBConnection object](#mdbconnection_constructor).
 
@@ -434,6 +447,8 @@ Alias for [MonetDBConnection.close](#mdbconnection_close).
 
 <a name="mdbconnection_destroy"></a>
 ### .destroy(\[msg\])
+*This method links to [MapiConnection.destroy](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/MapiConnection.md#destroy)*
+
 Fails all queries currently in the queue (including the one that is currently being executed), and destroys the socket.
 
 | Argument      | Type                | Required       | Description     |
@@ -455,6 +470,7 @@ The default value of the pretty flag can be overwritten by providing the global 
 you can override this default value on a per query basis, by providing a boolean value as last argument to either the 
 [MonetDBConnection.query](#mdbconnection_query) or the [MonetDBConnection.prepare](#mdbconnection_prepare) function.
 Example:
+
 ```javascript
 var MDB = require('monetdb')();
 
@@ -466,6 +482,7 @@ conn.query("SELECT a, b FROM yourtable").then(function(result) {
     console.log(result.data);
 });
 ```
+
 Outputs (depending on the values of columnns a and b and the number of resulting tuples):
 ```
 [
@@ -482,6 +499,7 @@ For every connection that is opened to the server, the timezone is automatically
 that opens the connection. You can change this behavior by passing a value for the [option 'timezoneOffset'](#options).
 The value for this option represents the number of minutes to deviate from GMT.
 This value is used by MonetDB to present timestamps with timezone. Example:
+
 ```javascript
 var MDB = require('monetdb')();
 
@@ -598,6 +616,7 @@ conn.query('SELECT something FROM sometable', function(err, result) {
 ```
 
 Note that you could also use the promise based API and the callback based API interchangeably for the same connection:
+
 ```javascript
 var MDB = require('monetdb')();
 
