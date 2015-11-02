@@ -478,6 +478,9 @@ module.exports = function MapiConnection(options) {
         return _state;
     };
 
+    /**
+     * <hannes@cwi.nl>
+     */
     self.connect = function() {
         _connectDeferred = Q.defer();
         if(_state == 'destroyed') _connectDeferred.reject(new Error('Failed to connect: This connection was destroyed.'));

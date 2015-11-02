@@ -12,8 +12,8 @@ module.exports.warning = function(logger, msg) {
     logger('WARNING ' + msg);
 };
 
-module.exports.debugRequest = function(logger, message, error, result) {
-    logger(message);
+module.exports.debugRequest = function(logger, request, error, result) {
+    logger(request);
     error && logger(error);
     result.rows && result.cols && logger(result.rows + " rows, " + result.cols + " cols");
     logger('\n');
