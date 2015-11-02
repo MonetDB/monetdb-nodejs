@@ -2,6 +2,8 @@
 
 [![Build Status](https://travis-ci.org/MonetDB/monetdb-nodejs.svg)](https://travis-ci.org/MonetDB/monetdb-nodejs)
 [![Coverage Status](https://coveralls.io/repos/MonetDB/monetdb-nodejs/badge.svg?branch=master&service=github)](https://coveralls.io/github/MonetDB/monetdb-nodejs?branch=master)
+[![npm version](https://badge.fury.io/js/monetdb.svg)](https://badge.fury.io/js/monetdb)
+[![Dependency Status](https://david-dm.org/MonetDB/monetdb-nodejs.svg)](https://david-dm.org/MonetDB/monetdb-nodejs)
 
 The MapiConnection object manages the socket connection to the server, and communicates over this socket. 
 It also contains the reconnect logic.
