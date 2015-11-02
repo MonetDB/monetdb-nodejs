@@ -16,9 +16,9 @@ If you insist, you could also include src/mapi-connection.js directly into your 
 ### MapiConnection(\[options\])
 Construct a MapiConnection object. For the available options in the options object, [see here](https://github.com/MonetDB/monetdb-nodejs#options).
 
-** Note: As opposed to the [MonetDBConnection object](#https://github.com/MonetDB/monetdb-nodejs#mdbconnection), 
+**Note: As opposed to the [MonetDBConnection object](#https://github.com/MonetDB/monetdb-nodejs#mdbconnection), 
 the options are not checked for validity on constructing a MapiConnection object. This might cause unexpected behavior,
-since we do not test the creation of a MapiConnection object other than by a MonetDBConnection object. **
+since we do not test the creation of a MapiConnection object other than by a MonetDBConnection object.**
 
 <a name="connect"></a>
 ### .connect()

@@ -40,6 +40,7 @@ conn.close();
 
 
 
+<a name="changes"></a>
 # Major changes since v0.\*
 
 ### Our interface is now promise based
@@ -580,6 +581,7 @@ Same as options.warningFn
 
 
 <a name="callbackwrapper"></a>
+# Backward compatibility
 All asynchronous methods of the [MonetDBConnection object](#mdbconnection) return promises.
 To provide backwards compatibility with version 0.\*, where asynchronous methods were callback based (and chainable),
 we created a wrapper that mimics the behavior of v0.\*. Example:

@@ -1,6 +1,7 @@
 # Documentation for MonetDB NodeJS connector v0.\*
 
-> **We strongly encourage everyone using the v0.\* version to switch to the v1.\* version. The v0.\* version is no longer maintained.**
+> **The v0.\* version is no longer maintained. Therefore, we strongly encourage everyone using the v0.\* version to switch to the v1.\* version.**
+> For information on how to upgrade, see the [major changes](https://github.com/MonetDB/monetdb-nodejs#changes), and the [backward compatibility](#callbackwrapper).
 
 # Installation
 npm install [-g] monetdb
