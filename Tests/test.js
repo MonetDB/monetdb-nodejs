@@ -332,7 +332,7 @@ describe("#Reconnect logic", function() {
                 try {
                     conn.mapiConnection.socketError("ECONNRESET");
                 } catch(e) {}
-                timeout = setTimeout(failNow, 200 + Math.round(notSoRandom()*300));
+                timeout = setTimeout(failNow, 300 + Math.round(notSoRandom()*500));
             }
             failNow();
             return Q.all(qs).fin(function() {
