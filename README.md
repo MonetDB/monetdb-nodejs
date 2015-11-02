@@ -1,4 +1,4 @@
-# MonetDB NodeJS connector v1.\*
+# MonetDB NodeJS connector version 1.\*
 
 [![Build Status](https://travis-ci.org/MonetDB/monetdb-nodejs.svg)](https://travis-ci.org/MonetDB/monetdb-nodejs)
 [![Coverage Status](https://coveralls.io/repos/MonetDB/monetdb-nodejs/badge.svg?branch=master&service=github)](https://coveralls.io/github/MonetDB/monetdb-nodejs?branch=master)
@@ -81,7 +81,7 @@ from a [MonetDBConnection object](#mdbconnection).
 
 ### Raw queries are not directly possible anymore
 Version 0.\* allowed the execution of raw queries by adding the boolean value 'true' to a query call. 
-*This now has another effect*.
+**This now has another effect**.
 Providing a boolean value to a query call influences whether or not the query result will be prettified or not.
 See [the section on pretty results](#pretty) for more information.
 If you want to execute raw queries, you need to do a request to the
@@ -151,13 +151,16 @@ In general, the order in which options are consider is:
 
 The MonetDB NodeJS module recognizes many options.
 You do not need to know them all. 
-There is *only one* option that does not have a default value, and that is the database name (dbname).
+There is **only one** option that does not have a default value, and that is the database name (dbname).
 
 The available options can be subdivided into several categories:
 
 
 ### Connection options
-These options are used to make the actual connection to MonetDB. Note that these 
+These options are used to make the actual connection to MonetDB. Note that these options can not be changed with the
+[MonetDBConnection.option](#mdbconnection_option) method.
+If you want to change these settings on an open connection, just construct a new connection.
+
 | Option            | Type      | Default                         | Additional description |
 | :---------------- | :-------- | :------------------------------ | :--------------------- |
 | host              | string    | localhost                       |
@@ -166,8 +169,7 @@ These options are used to make the actual connection to MonetDB. Note that these
 | user              | string    | monetdb                         |
 | password          | string    | monetdb                         |
 | language          | string    | sql                             | The language of the issued queries. Should be one of sql/mal.
-| timezoneOffset    | integer   | offset of current timezone      | The offset in minutes that holds for the required timezone.
-                                                                    See [connection timezone](#timezone) for more info.
+| timezoneOffset    | integer   | offset of current timezone      | The offset in minutes that holds for the required timezone. See [connection timezone](#timezone) for more info.
 
 
 ### Reconnection options
@@ -175,19 +177,16 @@ These options are used to determine how to reconnect whenever a connection fails
 
 | Option            | Type      | Default                         | Additional description |
 | :----------       | :-------- | :------------------------------ | :--------------------- |
-| maxReconnects     | integer   | 10                              | The maximum number of reconnect attempts after a connection 
-                                                                    failure. Set to 0 if you do not want to reconnect on 
-                                                                    connection failures.
+| maxReconnects     | integer   | 10                              | The maximum number of reconnect attempts after a connection failure. Set to 0 if you do not want to reconnect on connection failures.
 | reconnectTimeout  | integer   | 2000                            | The timeout used in between reconnect attempts.
 
 
 ### Query options
 These options influence the way queries are executed.
+
 | Option            | Type      | Default                         | Additional description |
 | :---------------- | :-------- | :------------------------------ | :--------------------- |
-| prettyResult      | boolean   | false                           | The value for this option will be the default value for how
-                                                                    query results are returned. This can be overwritten on a
-                                                                    per-query basis. See [pretty results](#pretty) for more info.
+| prettyResult      | boolean   | false                           | The value for this option will be the default value for how query results are returned. This can be overwritten on a per-query basis. See [pretty results](#pretty) for more info.
                                                                                           
 ### Logging
 The MonetDB NodeJS module comes with a very extensive logging functionality. It distinguishes between many types of different
@@ -197,28 +196,23 @@ See the [logging section](#logging) for more information.
 | Option            | Type      | Default                         | Additional description |
 | :---------------- | :-------- | :------------------------------ | :--------------------- |
 | logger            | function  | console.log                     | This function will be used by all of the default logging functions.
-| warnings          | boolean   | true                            | Whether or not to log warnings. *It is highly adviced to keep this
-                                                                    set to true, otherwise you will not be notified on e.g. unrecognized
-                                                                    options or reconnection attempts.*
+| warnings          | boolean   | true                            | Whether or not to log warnings. **It is highly adviced to keep this set to true, otherwise you will not be notified on e.g. unrecognized options or reconnection attempts.**
 | warningFn         | function  | See [logging section](#logging) | Warning messages will be passed to this function when they occur.
 | debug             | boolean   | false                           | Whether or not to log general debug messages.
 | debugFn           | function  | See [logging section](#logging) | Debug messages will be passed to this function when they occur.
 | debugRequests     | boolean   | false                           | Whether or not to log requests (SQL or MAL) when they resolve.
-| debugRequestFn    | function  | See [logging section](#logging) | SQL or MAL requests, including their results, will be passed to 
-                                                                    this function when they occur.
-| debugMapi         | boolean   | false                           | Whether or not to show the Mapi messages that are being sent
-                                                                    back and forth between the MonetDB NodeJS module and the MonetDB
-                                                                    server.
+| debugRequestFn    | function  | See [logging section](#logging) | SQL or MAL requests, including their results, will be passed to this function when they occur.
+| debugMapi         | boolean   | false                           | Whether or not to show the Mapi messages that are being sent back and forth between the MonetDB NodeJS module and the MonetDB server.
 | debugMapiFn       | function  | See [logging section](#logging) | Mapi messages will be passed to this function when they occur.
 
 
 
 ### Testing
 Options provided solely for testing.
+
 | Option            | Type      | Default                         | Additional description |
 | :---------------- | :-------- | :------------------------------ | :--------------------- |
-| testing           | boolean   | false                           | When set to true, some additional (undocumented) methods will be 
-                                                                    exposed, e.g. to simulate socket failures.
+| testing           | boolean   | false                           | When set to true, some additional (undocumented) methods will be exposed, e.g. to simulate socket failures.
 
 
 
@@ -277,10 +271,8 @@ Issue a query against the database. For a simple example, [see here](#example).
 | Argument      | Type          | Required       | Description     |
 | :------------ | : ----------- | :------------- | :-------------- |
 | query         | string        | yes            | The query you want to run. In case language is sql, this should be a valid SQL query.
-| params        | array         | no             | If this array is given, a prepared statement will be used under the hood. Very useful
-                                                   if you want to easily protect against SQL injection.
-| prettyResult  | boolean       | no             | If this is set to true, the query result will be prettified. If not given, the default
-                                                   from the options is used. See the [pretty result section](#pretty) for more info.
+| params        | array         | no             | If this array is given, a prepared statement will be used under the hood. Very useful if you want to easily protect against SQL injection.
+| prettyResult  | boolean       | no             | If this is set to true, the query result will be prettified. If not given, the default from the options is used. See the [pretty result section](#pretty) for more info.
                                                    
 Example of a query with parameters:
 ```javascript
@@ -298,16 +290,11 @@ conn.query(
 ```
 
 Returns a promise that resolves with an object with the following properties:
+
 | Property               | Type                   | Description     |
 | :--------------------- | :--------------------- | :-------------- |
-| data                   | array\[array\|object\] | If this is the result of a SELECT query, this property contains the resulting data 
-                                                    returned by the database. Every array entry represents one row of the result set. 
-                                                    If the 'prettyResult' option was set to true, every array entry will be an object,
-                                                    where the object properties equal the column names. Otherwise, the array entries will
-                                                    be arrays containing just the column values.
-| col                    | object                 | Object maps column names to query result indices. So if you for example did SELECT a, b FROM ... 
-                                                    you can access b in a tuple array by issuing tuple[result.col.b], which in this case would 
-                                                    resolve to tuple[1].
+| data                   | array\[array\|object\] | If this is the result of a SELECT query, this property contains the resulting data returned by the database. Every array entry represents one row of the result set. If the 'prettyResult' option was set to true, every array entry will be an object, where the object properties equal the column names. Otherwise, the array entries will be arrays containing just the column values.
+| col                    | object                 | Object maps column names to query result indices. So if you for example did SELECT a, b FROM ... you can access b in a tuple array by issuing tuple[result.col.b], which in this case would resolve to tuple[1].
 | rows                   | integer                | The number of rows in the result set.
 | cols                   | integer                | The number of columns in the result set.
 | structure              | array\[object\]        | An array containing an object for every column, with column information.
@@ -331,23 +318,16 @@ Prepares a query for repeated execution, and generates execution and release con
 
 | Argument      | Type          | Required       | Description     |
 | :------------ | : ----------- | :------------- | :-------------- |
-| query         | string        | yes            | The query that has to be prepared. If it does not start with prepare 
-                                                   (case insensitive), 'PREPARE ' will be prepended to the query.
-| prettyResult  | boolean       | no             | If this is set to true, the exec function will return prettified results. 
-                                                   If not given, the default from the options is used. See the 
-                                                   [pretty result section](#pretty) for more info.
+| query         | string        | yes            | The query that has to be prepared. If it does not start with prepare (case insensitive), 'PREPARE ' will be prepended to the query.
+| prettyResult  | boolean       | no             | If this is set to true, the exec function will return prettified results. If not given, the default from the options is used. See the [pretty result section](#pretty) for more info.
                                                    
 The returned promise resolves with an object with the following properties:
+
 | Property               | Type         | Description     |
 | :--------------------- | :----------- | :-------------- |
-| prepare                | object       | The regular query result for the PREPARE statement, as is described under 
-                                          [MonetDBConnection.query](#mdbconnection_query).
-| exec                   | function     | A function that executes the prepared statement. As its first and only argument, it takes
-                                          an array of values. It returns a promise equivalent to the promise returned by 
-                                          [MonetDBConnection.query](#mdbconnection_query).
-| release                | function     | A parameterless function that you can call when you want to free the resources used by the  
-                                          prepared statement. After calling this function, calls to the exec function will fail.
-                                          This function *does not* return anything. You cannot be notified of whether or not this worked.
+| prepare                | object       | The regular query result for the PREPARE statement, as is described under [MonetDBConnection.query](#mdbconnection_query).
+| exec                   | function     | A function that executes the prepared statement. As its first and only argument, it takes an array of values. It returns a promise equivalent to the promise returned by [MonetDBConnection.query](#mdbconnection_query).
+| release                | function     | A parameterless function that you can call when you want to free the resources used by the prepared statement. After calling this function, calls to the exec function will fail. This function **does not** return anything. You cannot be notified of whether or not this worked.
 
 Example:
 ```javascript
@@ -397,14 +377,11 @@ Will output:
 <a name="mdbconnection_option"></a>
 ### .option(name, [value])
 Get or set an option.
+
 | Argument      | Type                | Required       | Description     |
 | :------------ | : ----------------- | :------------- | :-------------- |
-| name          | string              | yes            | The name of the option. See the [option section](#options) for the
-                                                         recognized options.
-| value         | depending on option | no             | If this argument is provided, it is assumed that you want to set
-                                                         the option to this argument. Note that setting options is not 
-                                                         possible for connection options. The connection options are
-                                                         mentioned in the [option section](#options).
+| name          | string              | yes            | The name of the option. See the [option section](#options) for the recognized options.
+| value         | depending on option | no             | If this argument is provided, it is assumed that you want to set the option to this argument. Note that setting options is not possible for connection options. The connection options are mentioned in the [option section](#options).
 
 Throws an error if either the provided option is not found, or if the provided value is invalid.
 
@@ -519,36 +496,35 @@ You can manipulate whether or not these events are logged or not, and which func
 For all of these events, a default log function is specified in 
 [utils.js](https://github.com/MonetDB/monetdb-nodejs/blob/master/src/utils.js)
 Every log function receives as its first argument the logger that it should use, where the logger simply
-takes a string and logs it somewhere. By default, the logger is *console.log*. You can change this in
+takes a string and logs it somewhere. By default, the logger is **console.log**. You can change this in
 the [options](#options).
 
 In case you want to overwrite the default log functions, here are the function signatures:
 
 ### options.warningFn(logger, msg)
+
 | Argument      | Type                 | Description     |
 | :------------ | : ------------------ | :-------------- |
-| logger        | function             | The logger that is used, which defaults to console.log but can be specified through
-                                         the [options](#options).
+| logger        | function             | The logger that is used, which defaults to console.log but can be specified through the [options](#options).
 | msg           | string               | The message to write to the provided logger.
 
 ### options.debugFn(logger, msg)
 Same as options.warningFn
 
 ### options.debugRequestFn(logger, request, error, result)
+
 | Argument      | Type                 | Description     |
 | :------------ | : ------------------ | :-------------- |
-| logger        | function             | The logger that is used, which defaults to console.log but can be specified through
-                                         the [options](#options).
+| logger        | function             | The logger that is used, which defaults to console.log but can be specified through the [options](#options).
 | request       | string               | The request message (SQL query string in case this request is an SQL query)
-| error         | Error object or null | If this request failed, this argument contains the error that was thrown.
-                                         Otherwise, this argument will be null.
+| error         | Error object or null | If this request failed, this argument contains the error that was thrown. Otherwise, this argument will be null.
 | result        | Object or null       | If this request passed, this argument contains the [resulting object](#mdbconnection_query).
 
 ### options.debugMapiFn(logger, type, msg)
+
 | Argument      | Type                 | Description     |
 | :------------ | : ------------------ | :-------------- |
-| logger        | function             | The logger that is used, which defaults to console.log but can be specified through
-                                         the [options](#options).
+| logger        | function             | The logger that is used, which defaults to console.log but can be specified through the [options](#options).
 | type          | string               | Either 'TX' for transmitted messages, or 'RX' for received messages.
 | msg           | string               | The string that was communicated over the socket.
     
