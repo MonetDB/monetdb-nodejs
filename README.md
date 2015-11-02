@@ -39,7 +39,7 @@ conn.close();
 
 
 
-## Major changes since v0.\*
+# Major changes since v0.\*
 
 ### Our interface is now promise based
 In version 0.\*, all asynchronous methods were callback based. 
@@ -122,7 +122,7 @@ To show the current build status and testing coverage, we added appropriate badg
 
 
 <a name="options"></a>
-## Options
+# Options
 There are three flavors of setting options:
 1. providing global options
 2. providing local options
@@ -221,7 +221,7 @@ Options provided solely for testing.
 
 
 <a name="mdbconnection"></a>
-## MonetDBConnection
+# MonetDBConnection
 
 Getting a MonetDBConnection object is easy:
 ```javascript
@@ -236,8 +236,9 @@ var conn = new MDB({dbname: 'mydb'});
 All of its exposed attributes and methods are listed here:
 
 
-### MapiConnection(\[options\])
-Constructor for a MapiConnection object, that takes an optional options object. For possible options, see the 
+<a name="mdbconnection_constructor"></a>
+### MonetDBConnection(\[options\])
+Constructor for a MonetDBConnection object, that takes an optional options object. For possible options, see the 
 [options section](#options).
 
 Throws an error when the provided options object is not ok.
@@ -255,7 +256,11 @@ Just in case you are wondering,
 
 <a name="mdbconnection_connect"></a>
 ### .connect()
-See [MapiConnection.connect](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/MapiConnection.md#connect)
+Open the connection to the MonetDB server.
+
+Returns a promise that resolves when the connection succeeded, and gets rejected with an error message otherwise.
+Note that you **do not have to wait** for the connection promise to be resolved before issueing queries, since incoming
+queries will be properly cached.
 
 
 
@@ -321,7 +326,7 @@ Prepares a query for repeated execution, and generates execution and release con
 | query         | string        | yes            | The query that has to be prepared. If it does not start with prepare (case insensitive), 'PREPARE ' will be prepended to the query.
 | prettyResult  | boolean       | no             | If this is set to true, the exec function will return prettified results. If not given, the default from the options is used. See the [pretty result section](#pretty) for more info.
                                                    
-The returned promise resolves with an object with the following properties:
+Returns a promise that resolves with an object with the following properties:
 
 | Property               | Type         | Description     |
 | :--------------------- | :----------- | :-------------- |
@@ -389,25 +394,50 @@ If the second argument is omitted, the value of the option is returned.
 
 
 <a name="mdbconnection_getstate"></a>
-### .getState
-See [MapiConnection.getState](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/MapiConnection.md#getstate)
+### .getState()
+*This method links to [MapiConnection.getState](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/MapiConnection.md#getstate)*
+Get the current state of the connection. For normal usage you will never need to use this.
+
+Returns one of the following state strings:
+| State         | Meaning       |
+| :------------ | :------------ |
+| disconnected  | There is currently no open connection, either because it has never been opened yet, or because a reconnect is going on.
+| connected     | There is an open connection to the server, but authentication has not finished yet.
+| ready         | There is an open connection to the server, and we have successfully authenticated. The connection is ready to accept queries.
+| destroyed     | The connection is destroyed, either because it was explicitly destroyed by a call to [MonetDBConnection.destroy](#mdbconnection_destroy), or because of a failure to keep the connection open.
+
+Regardless of the return value of this method, you can safely issue queries to the connection, since they will be properly queued until the connection is ready.
 
 
 
 <a name="mdbconnection_close"></a>
-### .close
-See [MapiConnection.close](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/MapiConnection.md#close)
+### .close()
+Finishes all the current queries in the queue, and then destroys the socket by calling [MonetDBConnection.destroy](#mdbconnection_destroy).
+After closing a connection, it cannot be reopened. If reopening is desired, you should create a [new MonetDBConnection object](#mdbconnection_constructor).
+
+When queries are issued after calling close, they are still accepted and put into the queue, so a connection remains active
+until it becomes idle.
+
+Note that when you have issued a query with parameters, this will under the hood be executed in two steps (one prepare step
+and one execution step). If the close method is called after firing a prepared statement, it might therefore fail because the 
+socket can be destroyed after finishing the first step.
+
+Returns a promise that resolves when all queries in the queue are done and the socket is destroyed.
 
 
 
-### .disconnect
+### .disconnect()
 Alias for [MonetDBConnection.close](#mdbconnection_close).
 
 
 
 <a name="mdbconnection_destroy"></a>
-### .destroy
-See [MapiConnection.destroy](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/MapiConnection.md#destroy)
+### .destroy(msg)
+Fails all queries currently in the queue (including the one that is currently being executed), and destroys the socket.
+
+| Argument      | Type                | Required       | Description     |
+| :------------ | : ----------------- | :------------- | :-------------- |
+| msg           | string              | no             | An error message that will be sent to all queries that are rejected. If none is given, a default error message is sent. 
 
 
 
@@ -415,7 +445,7 @@ See [MapiConnection.destroy](https://github.com/MonetDB/monetdb-nodejs/blob/mast
 
 
 <a name="pretty"></a>
-## Pretty query results
+# Pretty query results
 By default, every row in a query result is represented by an array. However, if the pretty flag is set, the query result
 will instead be an array of objects, where every object has the column names as its properties. This makes using the result
 a lot more intuitive and fault-tolerant (e.g. if you hard code indices into row arrays, your code might start failing 
@@ -446,7 +476,7 @@ Outputs (depending on the values of columnns a and b and the number of resulting
 
 
 <a name="timezone"></a>
-## Connection time zone
+# Connection time zone
 For every connection that is opened to the server, the timezone is automatically set to the current timezone of the system
 that opens the connection. You can change this behavior by passing a value for the [option 'timezoneOffset'](#options).
 The value for this option represents the number of minutes to deviate from GMT.
@@ -477,7 +507,7 @@ conn2.query('SELECT NOW').then(function(result) {
 
 
 <a name="logging"></a>
-## Logging
+# Logging
 As you can see from the [options section](#options), there are many logging options. By default, only warning messages
 are logged, and console.log is used for this. The following types of log events can occur:
 1. Warnings
