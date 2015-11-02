@@ -399,6 +399,7 @@ If the second argument is omitted, the value of the option is returned.
 Get the current state of the connection. For normal usage you will never need to use this.
 
 Returns one of the following state strings:
+
 | State         | Meaning       |
 | :------------ | :------------ |
 | disconnected  | There is currently no open connection, either because it has never been opened yet, or because a reconnect is going on.
