@@ -552,11 +552,11 @@ Same as options.warningFn
 
 ### options.debugMapiFn(logger, type, msg)
 
-| Argument      | Type                 | Description                                                                                                  |
-| :------------ | : ------------------ | :----------------------------------------------------------------------------------------------------------- |
-| logger        | function             | The logger that is used, which defaults to console.log but can be specified through the [options](#options). |
-| type          | string               | Either 'TX' for transmitted messages, or 'RX' for received messages.                                         |
-| msg           | string               | The string that was communicated over the socket.                                                            |
+| Argument      | Type                 | Description     |
+| :------------ | :------------------- | :-------------- |
+| logger        | function             | The logger that is used, which defaults to console.log but can be specified through the [options](#options).
+| type          | string               | Either 'TX' for transmitted messages, or 'RX' for received messages.
+| msg           | string               | The string that was communicated over the socket.
     
 
 
