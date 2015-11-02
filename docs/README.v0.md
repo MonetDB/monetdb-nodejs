@@ -1,5 +1,6 @@
-# monetdb
-This package defines a mapiclient that allows easy communication between a NodeJS application and a running MonetDB server process.
+# Documentation for MonetDB NodeJS connector v0.\*
+
+> **We strongly encourage everyone using the v0.\* version to switch to the v1.\* version. The v0.\* version is no longer maintained.**
 
 # Installation
 npm install [-g] monetdb
