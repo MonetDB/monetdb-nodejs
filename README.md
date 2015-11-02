@@ -11,7 +11,7 @@ This NodeJS module provides an easy and powerful way to use MonetDB inside your 
 
 For version 0.\* users:
 * **[Click here for documentation of version 0.\*](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/README.v0.md)**
-* **[Click here for update notes, including new features, backward compatibility notes, and upgrade instructions](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/v1_notes.md)**
+* **[Click here for update notes, including new features, backward compatibility notes, and upgrade instructions](https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/v1-notes.md)**
 
 
 <a name="example"></a>
