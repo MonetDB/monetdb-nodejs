@@ -162,7 +162,7 @@ If you want, you can even pass default options: *var MDB = require('monetdb')(op
     *conn = new MDB(options).getCallbackWrapper(); conn.connect();*.
     You can then keep on using callback based functionality and query chaining as you did.
     - If you already used the promise wrapper, you can replace *conn = mdb.connect()* with
-    *conn = new MDB(options); conn.connect();
+    *conn = new MDB(options); conn.connect();*
 3. If you used the promise wrapper, remove the trailing Q from the calls to functions 
    connectQ, requestQ, queryQ, prepareQ, closeQ, and disconnectQ.
 4. Check all your calls to the query and request methods and see if you ever provide the boolean
