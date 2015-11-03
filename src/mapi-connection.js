@@ -46,7 +46,7 @@ module.exports = function MapiConnection(options) {
     function _nextMessage() {
         if (!_messageQueue.length) {
             _msgLoopRunning = false;
-            if (_closeDeferred) {
+            if ((!_messageQueueDisconnected || !_messageQueueDisconnected.length) && _closeDeferred) {
                 self.destroy();
                 _closeDeferred && _closeDeferred.resolve();
             }

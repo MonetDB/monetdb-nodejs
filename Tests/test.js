@@ -248,15 +248,16 @@ describe("#Connection", function() {
 
     it("should finish all its queries when closed", function() {
         var conn = new MDB();
-        return conn.connect().then(function() {
-            var qs = [
-                conn.query("SELECT 1"),
-                conn.query("SELECT 2"),
-                conn.query("SELECT 3")
-            ];
-            conn.close();
-            return Q.all(qs);
-        });
+        conn.connect();
+
+        var qs = [
+            conn.query("SELECT 1"),
+            conn.query("SELECT 2"),
+            conn.query("SELECT 3")
+        ];
+
+        conn.close();
+        return Q.all(qs);
     });
 
     it("should fail all queries on destroyed connection", function() {
