@@ -1,6 +1,6 @@
 {
   "name": "monetdb",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Connect MonetDB to your NodeJS app",
   "main": "index.js",
   "scripts": {
@@ -22,8 +22,8 @@
     }
   ],
   "repository": {
-    "type": "hg",
-    "url": "http://dev.monetdb.org/hg/MonetDB/"
+    "type": "git",
+    "url": "https://github.com/MonetDB/monetdb-nodejs"
   },
   "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
