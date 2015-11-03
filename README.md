@@ -88,6 +88,7 @@ If you want to change these settings on an open connection, just construct a new
 | user              | string    | monetdb                         |
 | password          | string    | monetdb                         |
 | language          | string    | sql                             | The language of the issued queries. Should be one of sql/mal.
+| defaultSchema     | string    | sys                             | The default schema to set the connection to after connecting.
 | timezoneOffset    | integer   | offset of current timezone      | The offset in minutes that holds for the required timezone. See [connection timezone](#timezone) for more info.
 
 

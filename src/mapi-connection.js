@@ -500,6 +500,11 @@ module.exports = function MapiConnection(options) {
                 _request('Xreply_size -1', _messageQueue);
                 _request('Xauto_commit 1', _messageQueue);
 
+                // Set the schema, if other than 'sys'
+                if(options.schema != 'sys') {
+                    _request(utils.packQuery('SET SCHEMA ' + options.schema), _messageQueue);
+                }
+
                 // Set the time zone interval, we do not check whether or not that succeeds.
                 _request(utils.packQuery("SET TIME ZONE INTERVAL '" + options.timezoneOffset + "' MINUTE"), _messageQueue);
 

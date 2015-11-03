@@ -34,6 +34,10 @@ var optionDefinition = {
         type: 'string',
         dflt: 'sql'
     },
+    defaultSchema: {
+        type: 'string',
+        dflt: 'sys'
+    },
     timezoneOffset: {
         type: 'number',
         dflt: new Date().getTimezoneOffset(), // offset in minutes
