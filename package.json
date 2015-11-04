@@ -1,6 +1,6 @@
 {
   "name": "monetdb",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Connect MonetDB to your NodeJS app",
   "main": "index.js",
   "scripts": {
