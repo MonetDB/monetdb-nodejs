@@ -501,8 +501,8 @@ module.exports = function MapiConnection(options) {
                 _request('Xauto_commit 1', _messageQueue);
 
                 // Set the schema, if other than 'sys'
-                if(options.schema != 'sys') {
-                    _request(utils.packQuery('SET SCHEMA ' + options.schema), _messageQueue);
+                if(options.defaultSchema != 'sys') {
+                    _request(utils.packQuery('SET SCHEMA ' + options.defaultSchema), _messageQueue);
                 }
 
                 // Set the time zone interval, we do not check whether or not that succeeds.
