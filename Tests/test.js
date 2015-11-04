@@ -281,6 +281,20 @@ describe("#Connection", function() {
         });
     });
 
+    it("should properly start queries after some idle time after connect", function() {
+        var conn = new MDB();
+        conn.connect();
+        var deferred = Q.defer();
+        setTimeout(function() {
+            conn.query("SELECT 42").then(function() {
+                deferred.resolve();
+            }, function(err) {
+                deferred.reject(err);
+            });
+        }, 5000);
+        return deferred.promise;
+    });
+
     it("should give its appropriate environment on request", function() {
         var conn = new MDB();
         conn.connect();
@@ -296,6 +310,7 @@ describe("#Connection", function() {
         conn.request.should.equal(conn.query);
         conn.disconnect.should.equal(conn.close);
     });
+
 });
 
 describe("#Reconnect logic", function() {
