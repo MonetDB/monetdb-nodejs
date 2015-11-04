@@ -226,7 +226,7 @@ module.exports = function(d) {
 
             if (params.length) {
                 var releaseFun = null;
-                return self.prepare(query).then(function(prepResult) {
+                return self.prepare(query, false).then(function(prepResult) {
                     releaseFun = prepResult.release;
                     return prepResult.exec(params);
                 }).then(function(result) {

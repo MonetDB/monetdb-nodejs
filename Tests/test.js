@@ -595,6 +595,7 @@ describe("#Prepared queries", function() {
     conn.connect();
 
     beforeEach("Starting transaction", function() {
+        conn.option("prettyResult", false);
         return conn.query("START TRANSACTION; CREATE TABLE foo(d INT, e FLOAT, f CHAR(5))");
     });
 
@@ -713,6 +714,23 @@ describe("#Prepared queries", function() {
             return conn.prepare("SELECT * FROM foo WHERE d > ?", true);
         }).then(function(prepResult) {
             return prepResult.exec([42]);
+        });
+
+        return shouldHaveValidResult(query, 3, 3, ["d", "e", "f"])
+            .should.eventually.have.property("data")
+            .that.deep.equals([
+                {d: 43, e: 4.3, f: "43"},
+                {d: 44, e: 4.4, f: "44"},
+                {d: 45, e: 4.5, f: "45"}
+            ]);
+    });
+
+    it("should generate pretty results in .query when pretty option is set", function() {
+        conn.option("prettyResult", true);
+        var query = conn.query(
+            "INSERT INTO foo VALUES (42,4.2,'42'),(43,4.3,'43'),(44,4.4,'44'),(45,4.5,'45')"
+        ).then(function() {
+            return conn.query("SELECT * FROM foo WHERE d > ?", [42]);
         });
 
         return shouldHaveValidResult(query, 3, 3, ["d", "e", "f"])

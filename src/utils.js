@@ -15,7 +15,7 @@ module.exports.warning = function(logger, msg) {
 module.exports.debugRequest = function(logger, request, error, result) {
     logger(request);
     error && logger(error);
-    result.rows && result.cols && logger(result.rows + " rows, " + result.cols + " cols");
+    result.rows && result.cols && logger("qid[" + result.id + "] " + result.rows + " rows, " + result.cols + " cols");
     logger('\n');
 };
 
