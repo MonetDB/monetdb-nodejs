@@ -37,6 +37,8 @@ module.exports = function MapiConnection(options) {
     var _readFinal = false;
     var _readStr = '';
 
+    var _failPermanently = false; // only used for testing
+
     function _setState(state) {
         if(options.debug) {
             options.debugFn(options.logger, 'Setting state to ' + state + '..');
@@ -482,7 +484,8 @@ module.exports = function MapiConnection(options) {
      */
     self.connect = function() {
         _connectDeferred = Q.defer();
-        if(_state == 'destroyed') _connectDeferred.reject(new Error('Failed to connect: This connection was destroyed.'));
+        if(_failPermanently) _connectDeferred.reject(new Error('Failure to connect simulated by testing..'));
+        else if(_state == 'destroyed') _connectDeferred.reject(new Error('Failed to connect: This connection was destroyed.'));
         else if(_state != 'disconnected') _connectDeferred.reject(new Error('Failed to connect: This connection is still open..'));
         else {
             // set up the connection
@@ -572,11 +575,12 @@ module.exports = function MapiConnection(options) {
 
 
     if(options.testing) {
-        self.socketError = function(statusCode) {
+        self.socketError = function(statusCode, permanently) {
             if(!_socket) throw new Error("Socket not initialized yet");
             _socket.end();
             _socket.emit('error', statusCode);
             _socket.emit('close', true);
+            _failPermanently = permanently;
         }
     }
 };

@@ -365,17 +365,10 @@ describe("#Reconnect logic", function() {
                 conn.query("SELECT 2").should.be.rejected,
                 conn.query("SELECT 3").should.be.rejected
             ];
-            var timeout = null;
-            function failNow() {
-                try {
-                    conn.mapiConnection.socketError("ECONNRESET");
-                } catch(e) {}
-                timeout = setTimeout(failNow, 1);
-            }
-            failNow();
-            return Q.all(qs).fin(function() {
-                if(timeout !== null) clearTimeout(timeout);
-            });
+            try {
+                conn.mapiConnection.socketError("ECONNRESET", true);
+            } catch(e) {}
+            return Q.all(qs);
         });
     });
 });
