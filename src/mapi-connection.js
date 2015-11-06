@@ -26,6 +26,7 @@ module.exports = function MapiConnection(options) {
     var _socket = null;
     var _state = 'disconnected';
     var _connectDeferred = null;
+    var _reconnecting = false;
     var _messageQueueDisconnected = [];
     var _messageQueue = [];
     var _msgLoopRunning = false;
@@ -46,7 +47,7 @@ module.exports = function MapiConnection(options) {
     function _nextMessage() {
         if (!_messageQueue.length) {
             _msgLoopRunning = false;
-            if ((!_messageQueueDisconnected || !_messageQueueDisconnected.length) && _closeDeferred) {
+            if (!_messageQueueDisconnected.length && _closeDeferred) {
                 self.destroy();
                 _closeDeferred && _closeDeferred.resolve();
             }
@@ -359,24 +360,11 @@ module.exports = function MapiConnection(options) {
             if (options.warnings) {
                 options.warningFn(options.logger, 'Attempted to reconnect for ' + (attempt-1) + ' times.. We are giving up now.');
             }
+            _reconnecting = false;
             return self.destroy('Failed to connect to MonetDB server');
         }
 
         // not reached limit: attempt a reconnect
-
-        if(!_messageQueueDisconnected) {
-            // This is the first attempt to reconnect, meaning we need to clear the message queue
-
-            // put cur message (unfinished) back to message queue
-            if(_curMessage) {
-                _messageQueue.unshift(_curMessage);
-                _curMessage = null;
-            }
-
-            // transfer messages in queue to another variable
-            _messageQueueDisconnected = _messageQueue;
-            _messageQueue = [];
-        }
 
         // always destroy socket, since if reconnecting, we always want to remove listeners and stop all traffic
         _destroySocket();
@@ -390,6 +378,7 @@ module.exports = function MapiConnection(options) {
                 if(options.warnings) {
                     options.warningFn(options.logger, 'Reconnection succeeded.');
                 }
+                _reconnecting = false;
             }, function(err) {
                 if(options.warnings) {
                     options.warningFn(options.logger, 'Could not connect to MonetDB: ' + err);
@@ -413,10 +402,20 @@ module.exports = function MapiConnection(options) {
             options.warningFn(options.logger, 'Socket error occurred: ' + err.toString());
         }
     }
-    function _onClose(hadError) {
+    function _onClose() {
         _setState('disconnected');
-        if(hadError) {
-            // if we had an error, see if we can reconnect
+
+        if(!_reconnecting) {
+            _reconnecting = true;
+
+            if (_curMessage) {
+                _messageQueue.unshift(_curMessage);
+                _curMessage = null;
+            }
+
+            // transfer messages in queue to another variable
+            _messageQueueDisconnected = _messageQueue;
+            _messageQueue = [];
             _reconnect(1);
         }
     }
@@ -516,7 +515,7 @@ module.exports = function MapiConnection(options) {
                     // Requests that have arrived in the meantime are stored in messageQueueDisconnected.
                     // Swap these queues, and resume the msg loop
                     _messageQueue = _messageQueueDisconnected;
-                    _messageQueueDisconnected = null;
+                    _messageQueueDisconnected = [];
                     _resumeMsgLoop();
                     _connectDeferred.resolve();
                 }, function (err) {
@@ -559,6 +558,7 @@ module.exports = function MapiConnection(options) {
      */
     self.destroy = function(msg) {
         _destroySocket();
+        _setState('destroyed');
         function failQuery(message) {
             message.deferred.reject(new Error(msg ? msg : 'Connection destroyed'));
         }
@@ -568,8 +568,6 @@ module.exports = function MapiConnection(options) {
 
         _messageQueue = [];
         _messageQueueDisconnected = [];
-
-        _setState('destroyed');
     };
 
 
