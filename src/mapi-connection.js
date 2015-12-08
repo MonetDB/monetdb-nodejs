@@ -10,10 +10,16 @@ var Q = require('q');
 
 var utils = require('./utils');
 
+/**
+ * <hannes@cwi.nl>
+ */
 function __sha512(str) {
     return crypto.createHash('sha512').update(str).digest('hex');
 }
 
+/**
+ * <hannes@cwi.nl>
+ */
 function _hdrline(line) {
     return line.substr(2, line.indexOf('#')-3).split(',\t');
 }
@@ -118,7 +124,13 @@ module.exports = function MapiConnection(options) {
 
         /* what is in the buffer is not necessary the entire block */
         var read_cnt = Math.min(data.length, _readLeftOver);
-        _readStr = _readStr + data.toString('utf8', 0, read_cnt);
+        try {
+            _readStr = _readStr + data.toString('utf8', 0, read_cnt);
+        } catch(e) {
+            if(options.warning) {
+                options.warningFn(options.logger, 'Could not append read buffer to query result');
+            }
+        }
         _readLeftOver -= read_cnt;
 
         /* if there is something left to read, we will be called again */
