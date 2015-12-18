@@ -498,7 +498,7 @@ module.exports = function MapiConnection(options) {
         _connectDeferred = Q.defer();
         if(_failPermanently) _connectDeferred.reject(new Error('Failure to connect simulated by testing..'));
         else if(_state == 'destroyed') _connectDeferred.reject(new Error('Failed to connect: This connection was destroyed.'));
-        else if(_state != 'disconnected') _connectDeferred.reject(new Error('Failed to connect: This connection is still open..'));
+        else if(_state != 'disconnected') _connectDeferred.reject(new Error('Failed to connect: This connection has state ' + _state + '..'));
         else {
             // set up the connection
 
@@ -507,7 +507,7 @@ module.exports = function MapiConnection(options) {
             // and eventually trigger the nextMessage method.
             _msgLoopRunning = true;
             _socket = net.connect(options.port, options.host, function () {
-                // Connected to the socket! We can now
+                // Connected to the socket!
                 _setState('connected');
 
                 /* some setup */
