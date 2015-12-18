@@ -189,6 +189,7 @@ module.exports = function MapiConnection(options) {
             if (response.charAt(0) == '!') {
                 response = new Error('Error: ' + response.substring(1, response.length - 1));
                 _connectDeferred && _connectDeferred.reject(response);
+                _setState("disconnected");
                 return _curMessage && _curMessage.deferred.reject(response);
             }
 
