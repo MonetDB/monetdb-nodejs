@@ -304,6 +304,29 @@ describe("#Connection", function() {
             .that.is.a("string");
     });
 
+    it("should fail on non existing defaultSchema", function() {
+        var conn = new MDB({defaultSchema: "non_existant"});
+        return conn.connect().should.be.rejected;
+    });
+
+    it("should pass on existing defaultSchema", function() {
+        var conn1 = new MDB();
+        var conn2 = new MDB({defaultSchema: "some_schema"});
+        conns.push(conn1);
+        conns.push(conn2);
+        conn1.connect();
+        return conn1.query("START TRANSACTION; " +
+            "CREATE SCHEMA some_schema; " +
+            "SET SCHEMA some_schema; " +
+            "CREATE TABLE a (a INT); " +
+            "INSERT INTO a VALUES (1); " +
+            "COMMIT;").then(function() {
+            return conn2.connect();
+        }).then(function() {
+            return conn2.query("SELECT * FROM a");
+        }).should.eventually.have.property("rows", 1);
+    });
+
     it("should have the right aliases", function() {
         var conn = new MDB();
         conn.open.should.equal(conn.connect);
