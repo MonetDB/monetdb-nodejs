@@ -271,7 +271,7 @@ module.exports = function(d) {
                         }
                         var colData = result.data[result.rows - bindparams.length + paramIndex];
                         if (colData) {
-                            var toCheck = ['timestamp', 'timestamptz', 'date'];
+                            var toCheck = ['timestamp', 'timestamptz', 'date', 'uuid'];
                             var i = toCheck.indexOf(colData[0]);
                             if (i >= 0) {
                                 s = toCheck[i] + ' ' + s;

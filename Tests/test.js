@@ -795,20 +795,21 @@ describe("#Prepared queries", function() {
             .that.deep.equals([[null]]);
     });
 
-    it("should properly handle timestamp, timestamptz, and date", function() {
+    it("should properly handle timestamp, timestamptz, date, and uuid", function() {
 
         var vals = [
             "2015-10-29 11:31:35.000000",
             "2015-10-29 11:31:35.000000" + constructCurTimezoneStr(),
-            "2015-10-29"
+            "2015-10-29",
+            "422cb031-6329-3b4f-0247-e261db574da6"
         ];
-        var query = conn.query("CREATE TABLE bar (a TIMESTAMP, b TIMESTAMPTZ, c DATE)").then(function() {
-            return conn.query("INSERT INTO bar VALUES (?, ?, ?)", vals);
+        var query = conn.query("CREATE TABLE bar (a TIMESTAMP, b TIMESTAMPTZ, c DATE, d UUID)").then(function() {
+            return conn.query("INSERT INTO bar VALUES (?, ?, ?, ?)", vals);
         }).then(function() {
             return conn.query("SELECT * FROM bar");
         });
 
-        return shouldHaveValidResult(query, 1, 3, ["a", "b", "c"])
+        return shouldHaveValidResult(query, 1, 4, ["a", "b", "c", "d"])
             .should.eventually.have.property("data")
             .that.deep.equals([vals]);
     });
