@@ -571,8 +571,8 @@ describe("#Inserting data from multiple connections", function() {
         return execQuery("DROP TABLE foo");
     });
 
-    it("should have added all data after closing all connections", function() {
-        this.timeout(10000);
+    it("should have added all data that did not occur any concurrency issues", function() {
+        this.timeout(30000);
         var nrConnections = 50;
         var insertionPromises = [];
         var nrSucceeded = 0;
