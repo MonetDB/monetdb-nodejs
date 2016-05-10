@@ -60,6 +60,7 @@ function constructCurTimezoneStr() {
     return (negative ? "-" : "+") + tzOffsetHoursStr + ":" + tzOffsetMinutesStr;
 }
 
+
 describe("#Options", function() {
     describe("##Global/Local options", function() {
         it("should throw exception when global option has wrong type", function () {
@@ -547,6 +548,49 @@ describe("#Regular querying", function() {
     });
 });
 
+
+describe("#Inserting data from multiple connections", function() {
+    var MDB = getMDB();
+
+    // creates a connection and executes a query
+    // return value is a promise that gets resolved with the query result if getResults is set to true, or
+    // resolves when the connection is closed (after executing the query) without an argument.
+    function execQuery(sql) {
+        var conn = new MDB();
+        conn.connect();
+        var result = conn.query(sql);
+        conn.close();
+        return result;
+    }
+
+    beforeEach("Create test table", function() {
+        return execQuery("CREATE TABLE foo (a STRING)");
+    });
+
+    afterEach("Remove test table", function() {
+        return execQuery("DROP TABLE foo");
+    });
+
+    it("should have added all data after closing all connections", function() {
+        this.timeout(10000);
+        var nrConnections = 50;
+        var insertionPromises = [];
+        var nrSucceeded = 0;
+
+        for(var i=0; i<nrConnections; ++i) {
+            var insertionPromise = execQuery("INSERT INTO foo VALUES('bar')").then(function() {
+                ++nrSucceeded;
+            });
+            insertionPromises.push(insertionPromise);
+        }
+
+        return Q.allSettled(insertionPromises).then(function() {
+            return execQuery("SELECT * FROM foo").should.eventually.have.property("rows", nrSucceeded);
+        });
+    });
+});
+
+
 describe("#Time zone offset", function() {
     var baseTimestamp = "2015-10-29 11:31:35.000000";
     var MDB = getMDB();
@@ -976,3 +1020,4 @@ describe("#CallbackWrapper", function() {
         conn.disconnect.should.equal(conn.close);
     });
 });
+

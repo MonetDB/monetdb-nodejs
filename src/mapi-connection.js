@@ -42,6 +42,7 @@ module.exports = function MapiConnection(options) {
     var _readLeftOver = 0;
     var _readFinal = false;
     var _readStr = '';
+    var _errorDetectionRegex = /(((\\n)?!)|^!)(.*)/g;
 
     var _failPermanently = false; // only used for testing
 
@@ -57,7 +58,7 @@ module.exports = function MapiConnection(options) {
             _msgLoopRunning = false;
             if (!_messageQueueDisconnected.length && _closeDeferred) {
                 self.destroy();
-                _closeDeferred && _closeDeferred.resolve();
+                _closeDeferred.resolve();
             }
             return;
         }
@@ -208,8 +209,10 @@ module.exports = function MapiConnection(options) {
         }
 
         /* error message */
-        if (response.charAt(0) == '!') {
-            _curMessage.deferred.reject(new Error(response.substring(1, response.length - 1)));
+        var errorMatch;
+        if (errorMatch = response.match(_errorDetectionRegex)) {
+            var error = errorMatch[0];
+            _curMessage.deferred.reject(new Error(error.substring(1, error.length)));
         }
 
         /* query result */
@@ -562,11 +565,9 @@ module.exports = function MapiConnection(options) {
     self.close = function() {
         _closeDeferred = Q.defer();
         if(_state == 'destroyed') _closeDeferred.resolve();
-        else {
-            if(!_msgLoopRunning) {
-                self.destroy();
-                _closeDeferred && _closeDeferred.resolve();
-            }
+        else if(!_msgLoopRunning) {
+            self.destroy();
+            _closeDeferred.resolve();
         }
         return _closeDeferred.promise;
     };
