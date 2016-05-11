@@ -555,8 +555,24 @@ describe("#Inserting data from multiple connections", function() {
     // creates a connection and executes a query
     // return value is a promise that gets resolved with the query result if getResults is set to true, or
     // resolves when the connection is closed (after executing the query) without an argument.
-    function execQuery(sql) {
-        var conn = new MDB();
+    function execQuery(sql, i) {
+        var conn = new MDB({
+            /*warningFn: function(logger, msg) {
+                logger("[" + i + "] " + msg);
+            },
+            debug: true,
+            debugFn: function(logger, msg) {
+                logger("[" + i + "] " + msg);
+            },
+            debugRequests: true,
+            debugRequestFn: function(logger, msg) {
+                logger("[" + i + "] " + msg);
+            },
+            debugMapi: true,
+            debugMapiFn: function(logger, side, msg) {
+                logger("[" + i + "] " + side + "| " + msg)
+            }*/
+        });
         conn.connect();
         var result = conn.query(sql);
         conn.close();
@@ -578,9 +594,12 @@ describe("#Inserting data from multiple connections", function() {
         var nrSucceeded = 0;
 
         for(var i=0; i<nrConnections; ++i) {
-            var insertionPromise = execQuery("INSERT INTO foo VALUES('bar')").then(function() {
+            var insertionPromise = execQuery("INSERT INTO foo VALUES('bar')", i).then(function() {
+                console.log("query ended: " + this.i + " (resolved)");
                 ++nrSucceeded;
-            });
+            }.bind({i: i}), function() {
+                console.log("query ended: " + this.i + " (rejected)");
+            }.bind({i: i}));
             insertionPromises.push(insertionPromise);
         }
 
@@ -1020,4 +1039,3 @@ describe("#CallbackWrapper", function() {
         conn.disconnect.should.equal(conn.close);
     });
 });
-

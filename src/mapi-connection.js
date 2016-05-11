@@ -33,8 +33,8 @@ module.exports = function MapiConnection(options) {
     var _state = 'disconnected';
     var _connectDeferred = null;
     var _reconnecting = false;
-    var _messageQueueDisconnected = [];
-    var _messageQueue = [];
+    var _messageQueue = _emptyMessageQueue('main');
+    var _messageQueueDisconnected = _emptyMessageQueue('disconnected');
     var _msgLoopRunning = false;
     var _closeDeferred = null;
     var _curMessage = null;
@@ -46,15 +46,26 @@ module.exports = function MapiConnection(options) {
 
     var _failPermanently = false; // only used for testing
 
-    function _setState(state) {
+    function _emptyMessageQueue(tag) {
+        var queue = [];
+        queue.tag = tag;
+        return queue;
+    }
+
+    function _debug(msg) {
         if(options.debug) {
-            options.debugFn(options.logger, 'Setting state to ' + state + '..');
+            options.debugFn(options.logger, msg);
         }
+    }
+
+    function _setState(state) {
+        _debug('Setting state to ' + state + '..');
         _state = state;
     }
 
     function _nextMessage() {
         if (!_messageQueue.length) {
+            _debug('No more messages in main message queue.. stopping message loop.');
             _msgLoopRunning = false;
             if (!_messageQueueDisconnected.length && _closeDeferred) {
                 self.destroy();
@@ -66,6 +77,7 @@ module.exports = function MapiConnection(options) {
         if(_state == 'disconnected') return; // will be called again after reconnect
 
         _curMessage = _messageQueue.shift();
+        _debug('Starting next request from main message queue: ' + _curMessage.message);
         _sendMessage(_curMessage.message);
     }
 
@@ -92,9 +104,7 @@ module.exports = function MapiConnection(options) {
                 final = 1;
             }
 
-            if (options.debug) {
-                options.debugFn(options.logger, 'Writing ' + bs + ' bytes, final=' + final);
-            }
+            _debug('Writing ' + bs + ' bytes, final=' + final);
 
             var hdrbuf = new Buffer(2);
             hdrbuf.writeInt16LE((bs << 1) | final, 0);
@@ -119,9 +129,7 @@ module.exports = function MapiConnection(options) {
             _readFinal = (hdr & 1) == 1;
             data = data.slice(2);
         }
-        if (options.debug) {
-            options.debugFn(options.logger, 'Reading ' + _readLeftOver + ' bytes, final=' + _readFinal);
-        }
+        _debug('Reading ' + _readLeftOver + ' bytes, final=' + _readFinal);
 
         /* what is in the buffer is not necessary the entire block */
         var read_cnt = Math.min(data.length, _readLeftOver);
@@ -190,7 +198,7 @@ module.exports = function MapiConnection(options) {
             if (response.charAt(0) == '!') {
                 response = new Error('Error: ' + response.substring(1, response.length - 1));
                 _connectDeferred && _connectDeferred.reject(response);
-                _setState("disconnected");
+                _setState('disconnected');
                 return _curMessage && _curMessage.deferred.reject(response);
             }
 
@@ -244,7 +252,7 @@ module.exports = function MapiConnection(options) {
 
         /* table result, we only like Q_TABLE and Q_PREPARE for now */
         if (tpe == 1 || tpe == 5) {
-            var hdrf = lines[0].split(" ");
+            var hdrf = lines[0].split(' ');
 
             resp.type='table';
             resp.queryid   = parseInt(hdrf[1]);
@@ -433,7 +441,8 @@ module.exports = function MapiConnection(options) {
 
             // transfer messages in queue to another variable
             _messageQueueDisconnected = _messageQueue;
-            _messageQueue = [];
+            _messageQueueDisconnected.tag = 'disconnected';
+            _messageQueue = _emptyMessageQueue('main');
             _reconnect(1);
         }
     }
@@ -451,6 +460,7 @@ module.exports = function MapiConnection(options) {
     function _resumeMsgLoop() {
         /* if message loop is not running, we need to start it again */
         if (!_msgLoopRunning) {
+            _debug('Message loop was not running; starting message loop..');
             _msgLoopRunning = true;
             _nextMessage();
         }
@@ -460,6 +470,7 @@ module.exports = function MapiConnection(options) {
         var defer = Q.defer();
         if(_state == 'destroyed') defer.reject(new Error('Cannot accept request: connection was destroyed.'));
         else {
+            _debug('Pushing request into ' + queue.tag + ' message queue: ' + message);
             queue.push({
                 message: message,
                 deferred: defer
@@ -467,10 +478,12 @@ module.exports = function MapiConnection(options) {
             _resumeMsgLoop();
         }
         if(options.debugRequests) {
-            defer.promise.then(function(res) {
+            return defer.promise.then(function(res) {
                 options.debugRequestFn(options.logger, message, null, res);
+                return res;
             }, function(err) {
                 options.debugRequestFn(options.logger, message, err, null);
+                throw err;
             });
         }
         return defer.promise;
@@ -537,7 +550,8 @@ module.exports = function MapiConnection(options) {
                     // Requests that have arrived in the meantime are stored in messageQueueDisconnected.
                     // Swap these queues, and resume the msg loop
                     _messageQueue = _messageQueueDisconnected;
-                    _messageQueueDisconnected = [];
+                    _messageQueue.tag = 'main';
+                    _messageQueueDisconnected = _emptyMessageQueue('disconnected');
                     _resumeMsgLoop();
                     _connectDeferred.resolve();
                 }, function (err) {
@@ -557,7 +571,7 @@ module.exports = function MapiConnection(options) {
 
     self.request = function(message) {
         if(options.warnings && !_connectDeferred) {
-            options.warningFn(options.logger, "Request received before a call to connect. This request will not be processed until you have called connect.");
+            options.warningFn(options.logger, 'Request received before a call to connect. This request will not be processed until you have called connect.');
         }
         return _request(message, _state == 'disconnected' ? _messageQueueDisconnected : _messageQueue);
     };
@@ -586,14 +600,14 @@ module.exports = function MapiConnection(options) {
         _messageQueue.forEach(failQuery);
         _messageQueueDisconnected && _messageQueueDisconnected.forEach(failQuery);
 
-        _messageQueue = [];
-        _messageQueueDisconnected = [];
+        _messageQueue = _emptyMessageQueue('main');
+        _messageQueueDisconnected = _emptyMessageQueue('disconnected');
     };
 
 
     if(options.testing) {
         self.socketError = function(statusCode, permanently) {
-            if(!_socket) throw new Error("Socket not initialized yet");
+            if(!_socket) throw new Error('Socket not initialized yet');
             _socket.end();
             _socket.emit('error', statusCode);
             _socket.emit('close', true);
