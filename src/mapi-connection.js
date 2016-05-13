@@ -193,7 +193,7 @@ module.exports = function MapiConnection(options) {
             return;
         }
 
-        if (_state == 'connected') {
+        if (_state == 'started') {
             /* error message during authentication? */
             if (response.charAt(0) == '!') {
                 response = new Error('Error: ' + response.substring(1, response.length - 1));
@@ -416,6 +416,9 @@ module.exports = function MapiConnection(options) {
     }
 
     function _onData(data) {
+        if(_state == 'connected') {
+            _state = 'started';
+        }
         _handleData(data);
     }
     function _onError(err) {
@@ -498,6 +501,7 @@ module.exports = function MapiConnection(options) {
      *                 been opened yet, or because a reconnect is going on
      * - connected:    There is an open connection to the server, but authentication has not
      *                 finished yet.
+     * - started:      An initial message has been received from the server after connecting
      * - ready:        There is an open connection to the server, and we have successfully
      *                 authenticated. The connection is ready to accept queries.
      * - destroyed:    The connection is destroyed, either because it was explicitly destroyed
@@ -515,7 +519,6 @@ module.exports = function MapiConnection(options) {
         _connectDeferred = Q.defer();
         if(_failPermanently) _connectDeferred.reject(new Error('Failure to connect simulated by testing..'));
         else if(_state == 'destroyed') _connectDeferred.reject(new Error('Failed to connect: This connection was destroyed.'));
-        else if(_state != 'disconnected') _connectDeferred.reject(new Error('Failed to connect: This connection has state ' + _state + '..'));
         else {
             // set up the connection
 
@@ -527,7 +530,16 @@ module.exports = function MapiConnection(options) {
                 // Connected to the socket!
                 _setState('connected');
 
-                /* some setup */
+                // We give the server some time to initiate traffic on this socket.
+                var waitingTime = 1000;
+                setTimeout(function() {
+                    if(_state == 'connected') {
+                        // server has still sent no initial message.. reconnect and do nothing further
+                        _reconnect(1);
+                    }
+                }, waitingTime);
+
+                // And we already fill the message queue with things that have to be done when authentication completes.
                 _request('Xreply_size -1', _messageQueue);
                 _request('Xauto_commit 1', _messageQueue);
 

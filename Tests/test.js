@@ -556,8 +556,9 @@ describe("#Inserting data from multiple connections", function() {
     // return value is a promise that gets resolved with the query result if getResults is set to true, or
     // resolves when the connection is closed (after executing the query) without an argument.
     function execQuery(sql, i) {
-        var conn = new MDB({
-            /*warningFn: function(logger, msg) {
+        var conn = new MDB({ // uncomment the following statements to properly debug this functionality
+            /*warnings: true
+            warningFn: function(logger, msg) {
                 logger("[" + i + "] " + msg);
             },
             debug: true,
@@ -573,7 +574,7 @@ describe("#Inserting data from multiple connections", function() {
                 logger("[" + i + "] " + side + "| " + msg)
             }*/
         });
-        conn.connect();
+        conn.connect().then();
         var result = conn.query(sql);
         conn.close();
         return result;
@@ -595,10 +596,10 @@ describe("#Inserting data from multiple connections", function() {
 
         for(var i=0; i<nrConnections; ++i) {
             var insertionPromise = execQuery("INSERT INTO foo VALUES('bar')", i).then(function() {
-                console.log("query ended: " + this.i + " (resolved)");
+                //console.log("query ended: " + this.i + " (resolved)");
                 ++nrSucceeded;
             }.bind({i: i}), function() {
-                console.log("query ended: " + this.i + " (rejected)");
+                //console.log("query ended: " + this.i + " (rejected)");
             }.bind({i: i}));
             insertionPromises.push(insertionPromise);
         }
@@ -608,7 +609,6 @@ describe("#Inserting data from multiple connections", function() {
         });
     });
 });
-
 
 describe("#Time zone offset", function() {
     var baseTimestamp = "2015-10-29 11:31:35.000000";
@@ -1039,3 +1039,4 @@ describe("#CallbackWrapper", function() {
         conn.disconnect.should.equal(conn.close);
     });
 });
+
