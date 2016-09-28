@@ -42,7 +42,7 @@ module.exports = function MapiConnection(options) {
     var _readLeftOver = 0;
     var _readFinal = false;
     var _readStr = '';
-    var _errorDetectionRegex = /(((\\n)?!)|^!)(.*)/g;
+    var _errorDetectionRegex = /(\\n!|^!)(.*)/g;
 
     var _failPermanently = false; // only used for testing
 
