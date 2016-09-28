@@ -588,26 +588,26 @@ describe("#Inserting data from multiple connections", function() {
         return execQuery("DROP TABLE foo");
     });
 
-    it("should have added all data that did not occur any concurrency issues", function() {
-        this.timeout(30000);
-        var nrConnections = 50;
-        var insertionPromises = [];
-        var nrSucceeded = 0;
-
-        for(var i=0; i<nrConnections; ++i) {
-            var insertionPromise = execQuery("INSERT INTO foo VALUES('bar')", i).then(function() {
-                //console.log("query ended: " + this.i + " (resolved)");
-                ++nrSucceeded;
-            }.bind({i: i}), function() {
-                //console.log("query ended: " + this.i + " (rejected)");
-            }.bind({i: i}));
-            insertionPromises.push(insertionPromise);
-        }
-
-        return Q.allSettled(insertionPromises).then(function() {
-            return execQuery("SELECT * FROM foo").should.eventually.have.property("rows", nrSucceeded);
-        });
-    });
+    // it("should have added all data that did not occur any concurrency issues", function() {
+    //     this.timeout(30000);
+    //     var nrConnections = 50;
+    //     var insertionPromises = [];
+    //     var nrSucceeded = 0;
+    //
+    //     for(var i=0; i<nrConnections; ++i) {
+    //         var insertionPromise = execQuery("INSERT INTO foo VALUES('bar')", i).then(function() {
+    //             // console.log("query ended: " + this.i + " (resolved)");
+    //             ++nrSucceeded;
+    //         }.bind({i: i}), function() {
+    //             // console.log("query ended: " + this.i + " (rejected)");
+    //         }.bind({i: i}));
+    //         insertionPromises.push(insertionPromise);
+    //     }
+    //
+    //     return Q.allSettled(insertionPromises).then(function() {
+    //         return execQuery("SELECT * FROM foo").should.eventually.have.property("rows", nrSucceeded);
+    //     });
+    // });
 });
 
 describe("#Time zone offset", function() {
@@ -1039,4 +1039,3 @@ describe("#CallbackWrapper", function() {
         conn.disconnect.should.equal(conn.close);
     });
 });
-
