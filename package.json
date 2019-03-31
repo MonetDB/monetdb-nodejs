@@ -29,9 +29,9 @@
   "devDependencies": {
     "chai": "^3.4.0",
     "chai-as-promised": "^5.1.0",
-    "coveralls": "^2.11.4",
+    "coveralls": "^3.0.3",
     "istanbul": "^0.4.0",
-    "mocha": "^2.3.3",
+    "mocha": "^6.0.2",
     "mocha-lcov-reporter": "^1.0.0"
   },
   "dependencies": {
