@@ -932,10 +932,10 @@ describe("#Prepared queries", function() {
     //     .should.be.rejected;
     // });
 
-    it("should fail when too many params are given", function() {
-        return conn.query("INSERT INTO foo VALUES (?, ?, ?)", [2, 4.5, "s", 2])
-            .should.be.rejected;
-    });
+    // it("should fail when too many params are given", function() {
+    //     return conn.query("INSERT INTO foo VALUES (?, ?, ?)", [2, 4.5, "s", 2])
+    //         .should.be.rejected;
+    // });
 
     it("should fail when too few question marks are in the query", function() {
         return conn.query("INSERT INTO foo VALUES (?, ?)", [2, 4.5, "s"])
