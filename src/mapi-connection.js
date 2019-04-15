@@ -422,7 +422,6 @@ module.exports = function MapiConnection(options) {
         _handleData(data);
     }
     function _onError(err) {
-        console.log('on error ...');
         if(_state == 'disconnected') {
             // there must have been a connection error, since the error handler was called
             // before the net.connect callback
@@ -433,23 +432,22 @@ module.exports = function MapiConnection(options) {
         }
     }
     function _onClose() {
-        console.log('on close ...');
         _setState('disconnected');
 
-        // if(!_reconnecting) {
-        //     _reconnecting = true;
+        if(!_reconnecting) {
+            _reconnecting = true;
 
-        //     if (_curMessage) {
-        //         _messageQueue.unshift(_curMessage);
-        //         _curMessage = null;
-        //     }
+            if (_curMessage) {
+                _messageQueue.unshift(_curMessage);
+                _curMessage = null;
+            }
 
-        //     // transfer messages in queue to another variable
-        //     _messageQueueDisconnected = _messageQueue;
-        //     _messageQueueDisconnected.tag = 'disconnected';
-        //     _messageQueue = _emptyMessageQueue('main');
-        //     _reconnect(1);
-        // }
+            // transfer messages in queue to another variable
+            _messageQueueDisconnected = _messageQueue;
+            _messageQueueDisconnected.tag = 'disconnected';
+            _messageQueue = _emptyMessageQueue('main');
+            _reconnect(1);
+        }
     }
 
     function _destroySocket() {
