@@ -314,6 +314,7 @@ module.exports = function(d) {
         self.connect = self.mapiConnection.connect;
         self.getState = self.mapiConnection.getState;
         self.close = self.mapiConnection.close;
+        self.end = self.mapiConnection.end;
         self.destroy = self.mapiConnection.destroy;
 
         applyAliases(self);

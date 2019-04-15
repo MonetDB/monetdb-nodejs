@@ -38,7 +38,7 @@ module.exports = function MapiConnection(options) {
     var _msgLoopRunning = false;
     var _closeDeferred = null;
     var _curMessage = null;
-    var _mapiBlockSize = 8192;
+    var _mapiBlockSize = 8190; // monedb ./common/stream/stream.h’: #define BLOCK (8 * 1024 - 2)
     var _readLeftOver = 0;
     var _readFinal = false;
     var _readStr = '';
@@ -533,7 +533,7 @@ module.exports = function MapiConnection(options) {
                 // We give the server some time to initiate traffic on this socket.
                 var waitingTime = 1000;
                 setTimeout(function() {
-                    if(_state == 'connected') {
+                    if(_state === 'connected') {
                         // server has still sent no initial message.. reconnect and do nothing further
                         _reconnect(1);
                     }
@@ -549,7 +549,7 @@ module.exports = function MapiConnection(options) {
 
                 var schemaReq = Q.when(true);
                 // Set the schema, if other than 'sys'
-                if(options.defaultSchema != 'sys') {
+                if(options.defaultSchema !== 'sys') {
                     schemaReq = _request(utils.packQuery('SET SCHEMA ' + options.defaultSchema), _messageQueue);
                 }
                 // try to execute a simple query, after the schema has been set (if required at all) and resolve/reject connection promise
@@ -596,6 +596,12 @@ module.exports = function MapiConnection(options) {
             _closeDeferred.resolve();
         }
         return _closeDeferred.promise;
+    };
+
+    self.end = function(data = null, cb = null) {
+        if(_socket) {
+            _socket.end(data, cb);
+        }
     };
 
     /**
