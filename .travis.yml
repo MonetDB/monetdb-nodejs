@@ -3,9 +3,9 @@ node_js:
   - "9"
 sudo: required
 install:
-  - sudo bash Tests/install-monetdb.sh
+  - sudo bash test/install-monetdb.sh
   - npm install
 before_script:
-  - bash Tests/start-monetdb.sh
+  - bash test/start-monetdb.sh
 after_success:
   - npm run coveralls
