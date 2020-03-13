@@ -7,6 +7,8 @@
 var net = require('net');
 var crypto = require('crypto');
 var Q = require('q');
+const StringDecoder = require('string_decoder').StringDecoder;
+const decoder = new StringDecoder('utf8');
 
 var utils = require('./utils');
 
@@ -134,7 +136,13 @@ module.exports = function MapiConnection(options) {
         /* what is in the buffer is not necessary the entire block */
         var read_cnt = Math.min(data.length, _readLeftOver);
         try {
-            _readStr = _readStr + data.toString('utf8', 0, read_cnt);
+            //String concat involve problems with 2 bytes characters like é ou à 			
+            //_readStr = _readStr + data.toString('utf8', 0, read_cnt);
+			
+			var buf = new Buffer(read_cnt);
+			data.copy(buf, 0, 0, read_cnt);
+            _readStr = _readStr + decoder.write(buf);
+            
         } catch(e) {
             if(options.warning) {
                 options.warningFn(options.logger, 'Could not append read buffer to query result');
