@@ -15,7 +15,7 @@ describe("#Connection", function() {
 
     var MDB = getMDB();
 
-    it.only("2 byte characters", async () => {
+    it("2 byte characters", async () => {
         var string = 'éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé';
             string += string;
             string += string;
