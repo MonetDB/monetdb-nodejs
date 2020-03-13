@@ -217,7 +217,7 @@ describe("#Logging", function() {
 
 
 describe("#Connection", function() {
-    this.timeout(10000);
+    this.timeout(5000); 
 
     var MDB = getMDB();
 
@@ -524,7 +524,7 @@ describe("#Regular querying", function() {
         var query = conn.query("SELECT '\\\\asdf' AS a, '\"' AS b, '\\\"' AS c, '\\\\\"' AS d, '\\'' AS e");
         return shouldHaveValidResult(query, 1, 5, ["a", "b", "c", "d", "e"])
             .should.eventually.have.property("data")
-            .that.deep.equals([['\\asdf', '"', '\\"', '\\"', "'"]]);
+            .that.deep.equals([['\\asdf', '"', '\"', '\\"', "'"]]);
     });
 
     it("should properly store and retrieve escaped values", function() {
