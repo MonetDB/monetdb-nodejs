@@ -114,6 +114,11 @@ var optionDefinition = {
         type: 'boolean',
         dflt: false,
         transform: parseBool
+    },
+    autoCommit: {
+        type: 'boolean',
+        dflt: true, // by default auto_commit=1 see mclient.c
+        transform: parseBool
     }
 };
 
@@ -211,6 +216,17 @@ module.exports = function(d) {
 
         // public vars and functions
         self.mapiConnection = new MapiConnection(_options);
+
+        self.autoCommit = _options.autoCommit;
+        self.setAutocommit = function(autocommit) {
+            if(typeof autocommit !== 'boolean') {
+                throw new TypeError('expected boolean argument');
+            }
+            self.autoCommit = autocommit;
+            const mode = Boolean(autocommit) ? 1 : 0;
+            const msg = `Xauto_commit ${mode}`;
+            self.mapiConnection.request(msg);
+        }
 
         self.query = function(query) {
             var params = [];
@@ -313,12 +329,22 @@ module.exports = function(d) {
         // proxy some methods
         self.connect = self.mapiConnection.connect;
         self.getState = self.mapiConnection.getState;
-        self.close = self.mapiConnection.close;
+        self.close = async () => {
+            if (self.autoCommit === false) {
+                try {
+                    const q = utils.packQuery("ROLLBACK");
+                    await self.mapiConnection.request(q);
+                } catch (err) {
+                    console.error(err);
+                }
+                
+            }
+            self.mapiConnection.close();
+        }
         self.end = self.mapiConnection.end;
         self.destroy = self.mapiConnection.destroy;
 
         applyAliases(self);
-
 
         self.getCallbackWrapper = function() {
             var wrapper = {
