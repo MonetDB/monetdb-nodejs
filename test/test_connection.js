@@ -262,7 +262,7 @@ describe("auto_commit logic", function() {
         conn.autoCommit.should.equals(true);
     });
 
-    it.only('should set auto_commit off and transactions not explicitly commited should be rolled back', async () => {
+    it('should set auto_commit off and transactions not explicitly commited should be rolled back', async () => {
         let conn = new MDB();
         await conn.connect();
         await conn.query(`
