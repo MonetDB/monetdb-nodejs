@@ -40,7 +40,7 @@ module.exports = function MapiConnection(options) {
     var _msgLoopRunning = false;
     var _closeDeferred = null;
     var _curMessage = null;
-    var _mapiBlockSize = 8190; // monedb ./common/stream/stream.h’: #define BLOCK (8 * 1024 - 2)
+    var _mapiBlockSize = 8190; // monetdb ./common/stream/stream.h’: #define BLOCK (8 * 1024 - 2)
     var _readLeftOver = 0;
     var _readFinal = false;
     var _readStr = '';
@@ -549,7 +549,8 @@ module.exports = function MapiConnection(options) {
 
                 // And we already fill the message queue with things that have to be done when authentication completes.
                 _request('Xreply_size -1', _messageQueue);
-                _request('Xauto_commit 1', _messageQueue);
+                const auto_commit = Boolean(options.autoCommit) ? 1 : 0;
+                _request(`Xauto_commit ${auto_commit}`, _messageQueue);
 
 
                 // Set the time zone interval, we do not check whether or not that succeeds.

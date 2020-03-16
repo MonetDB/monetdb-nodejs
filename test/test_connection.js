@@ -180,7 +180,7 @@ describe("#Connection", function() {
 });
 
 describe("#Reconnect logic", function() {
-    // this.timeout(10000);
+    this.timeout(10000);
     var MDB = getMDB();
 
     it("should finish query after reconnect", function() {
@@ -252,4 +252,39 @@ describe("#Reconnect logic", function() {
             
     });
 
+});
+
+describe("auto_commit logic", function() {
+    const MDB = getMDB();
+
+    it('should set auto_commit true by default' , async () => {
+        const conn = new MDB();
+        conn.autoCommit.should.equals(true);
+    });
+
+    it.only('should set auto_commit off and transactions not explicitly commited should be rolled back', async () => {
+        let conn = new MDB();
+        await conn.connect();
+        await conn.query(`
+        drop table if exists foo;
+        CREATE TABLE foo(a INT, b FLOAT, c BLOB);
+        `);
+        let res = await conn.query("select * from foo");
+        res['rows'].should.equals(0);
+        conn.close();
+        conn = new MDB({autoCommit: false});
+        conn.autoCommit.should.equals(false);
+        await conn.connect();
+        const qry = `INSERT INTO foo VALUES (42,4.2,'42'),(43,4.3,'43'),(44,4.4,'44'),(45,4.5,'45')`;
+        await conn.query(qry);
+        res = await conn.query("select * from foo");
+        res.rows.should.equals(4);
+        conn.close()
+        conn = new MDB();
+        await conn.connect();
+        res = await conn.query("select * from foo");
+        res.rows.should.equals(0);
+        await conn.query("drop table if exists foo;");
+        conn.close();
+    });
 });
