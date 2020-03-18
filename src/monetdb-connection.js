@@ -258,6 +258,9 @@ module.exports = function(d) {
             });
         };
 
+        self.querystream = function(query) {			
+			return self.mapiConnection.request(utils.packQuery(query),true);
+		}
         self.prepare = function(query, prettyResult) {
             if (query.toUpperCase().trim().substring(0,7) != 'PREPARE')
                 query = 'PREPARE ' + query;
