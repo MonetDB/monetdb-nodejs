@@ -4,15 +4,15 @@
 
 'use strict';
 
-var net = require('net');
-var crypto = require('crypto');
-var Q = require('q');
-var EventEmitter = require("events").EventEmitter;
+const net = require('net');
+const crypto = require('crypto');
+const Q = require('q');
+const EventEmitter = require("events").EventEmitter;
 
 const StringDecoder = require('string_decoder').StringDecoder;
 const decoder = new StringDecoder('utf8');
 
-var utils = require('./utils');
+const utils = require('./utils');
 
 /**
  * <hannes@cwi.nl>
@@ -150,51 +150,8 @@ module.exports = function MapiConnection(options) {
             
             //mode stream detection
 			if (_curMessage){				
-				if (_curMessage.deferred.promise.on){				
-					if (_readStr.charAt(0) == '&') {					
-						flag_query = true;
-                        var lines = _readStr.split('\n');
-                        //header contains only 5 lines
-                        //we parse only if we have at least 5 lines 
-                        //otherwise next call will concat data with last _readStr
-						if (lines.length>5){					
-							header =_parseHeader(_readStr,true);							  
-                            _curMessage.deferred.promise.emit('header', header);
-                            //we consume 5 lines of _readStr
-							var headerLineNb = 5;
-							var idx = _readStr.indexOf('\n');
-							var realidx;
-							while (headerLineNb > 0) {
-								headerLineNb--;
-								realidx = idx;
-								idx = _readStr.indexOf('\n', idx + 1);						
-							}
-                            _readStr = _readStr.substring( realidx+1,_readStr.length);
-                            //we set the flag for the header as we will be called again
-                            flag_header_treated = true;
-                            //we keep the header informations in _curMessage
-							_curMessage.header = header;
-						}				
-					}
-					//Called again - we began to extract data
-					if (flag_query && flag_header_treated){
-						var idx = _readStr.indexOf('\n');
-                        var realidx=0;
-                        //we consume lines of _readStr
-						while (idx != -1) {					
-							realidx = idx;
-							idx = _readStr.indexOf('\n', idx + 1);				
-                        }
-                        //Sometimes, the buffer contains more data than _readLeftOver (data.length>_readLeftOver)
-                        //see below : in that case, we call again _handleData
-                        //to concat the last string in _readStr but this is not a full line with \n
-                        //we must not emit data in that case (realidx==0), otherwise, data will be emitted twice
-						if (realidx>0){
-						    var extract = _readStr.substring(0, realidx);
-						    _readStr = _readStr.substring(realidx+1,_readStr.length);	
-						    _curMessage.deferred.promise.emit('data', _parseTuples(_curMessage.header.column_types, extract.split('\n')));	
-						}											
-					}
+				if (_curMessage.deferred.promise.on){
+					_handleDataStream();
 				}	
 			}
         } catch(e) {
@@ -230,6 +187,61 @@ module.exports = function MapiConnection(options) {
             var leftover = new Buffer(data.length - read_cnt);
             data.copy(leftover, 0, read_cnt, data.length);
             _handleData(leftover);
+        }
+    }
+
+    /**
+     * 
+     *
+     * Consume message received from _handleData and emit header and data event : used by querystream
+     *
+     * @param none
+     * @private
+     */
+    function _handleDataStream() {
+        if (_readStr.charAt(0) == '&') {					
+            flag_query = true;
+            let lines = _readStr.split('\n');
+            //header contains only 5 lines
+            //we parse only if we have at least 5 lines 
+            //otherwise next call will concat data with last _readStr
+            if (lines.length>5){					
+                header =_parseHeader(_readStr);							  
+                _curMessage.deferred.promise.emit('header', header);
+                //we consume 5 lines of _readStr
+                let headerLineNb = 5;
+                let idx = _readStr.indexOf('\n');
+                let realidx;
+                while (headerLineNb > 0) {
+                    headerLineNb--;
+                    realidx = idx;
+                    idx = _readStr.indexOf('\n', idx + 1);						
+                }
+                _readStr = _readStr.substring( realidx+1,_readStr.length);
+                //we set the flag for the header as we will be called again
+                flag_header_treated = true;
+                //we keep the header informations in _curMessage
+                _curMessage.header = header;
+            }				
+        }
+        //Called again - we began to extract data
+        if (flag_query && flag_header_treated){
+            let idx = _readStr.indexOf('\n');
+            let realidx=0;
+            //we consume lines of _readStr
+            while (idx != -1) {					
+                realidx = idx;
+                idx = _readStr.indexOf('\n', idx + 1);				
+            }
+            //Sometimes, the buffer contains more data than _readLeftOver (data.length>_readLeftOver)
+            //see the end of _handleData : in that case, we call again _handleData
+            //to concat the last string in _readStr but this is not a full line with \n
+            //we must not emit data in that case (realidx==0), otherwise, data will be emitted twice
+            if (realidx>0){
+                let extract = _readStr.substring(0, realidx);
+                _readStr = _readStr.substring(realidx+1,_readStr.length);				
+                _curMessage.deferred.promise.emit('data', _parseTuples(_curMessage.header.column_types, extract.split('\n')));					
+            }											
         }
     }
 
