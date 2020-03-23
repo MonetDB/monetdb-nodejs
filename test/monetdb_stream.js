@@ -1,42 +1,80 @@
 
-var MDB = require('monetdb')();
-//var MonetDBPool = require("monetdb-pool");
+const { getMDB } = require('./common');
  
-var options = {
-    host     : 'localhost', 
-    port     : 50000, 
-    dbname   : 'demo', 
-    user     : 'monetdb', 
-    password : 'monetdb'
-};
- 
-var poolOptions = {
-	nrConnections : 10	
-} 
 
-var conn = new MDB(options);
-conn.connect().fail(function(error) {
-	console.log("Connexion Impossible : "+ error);
-});
-//var pool = new MonetDBPool(poolOptions, options); 
-/*pool.connect().fail(function(error) {
-	console.log("Connexion Impossible : "+ error);
-});
-*/
+describe('Query stream', () => {
+	const MDB = getMDB();
 
-function test_querysteam(){
-	var sql = 'SELECT table_type_id,table_type_name FROM table_types where table_type_id in (0,1,3,4,5)';
+	it('should call callbacks', async () => {
+		const conn = new MDB();
+		const sql = 'select * from columns';
+		
+		await conn.connect();
+		
+		const { header: hdrEventCount, data: dataEventCnt, end: endEventCount } = await test_callbacks(conn, sql);
+		hdrEventCount.should.equal(1);
+		(dataEventCnt > 0).should.be.true;
+		endEventCount.should.equal(1);
+		conn.close();
+	});
+
+	it('should produce result', async () => {
+		const sql = 'SELECT table_type_id,table_type_name FROM table_types where table_type_id in (0,1,3,4,5)';
+		const conn = new MDB();
+		await conn.connect();
+		
+		const res = await test_result(conn, sql);
+		Boolean(res).should.be.true;
+		conn.close();
+	});
+
+	it('should produce equal results', async() => {
+		const sql = 'select * from columns';
+		const conn = new MDB();
+		await conn.connect();
+		const left = await conn.query(sql);
+		const right = await test_result(conn, sql);
+		left.data.toString().should.equal(right.data.toString());
+	});
+
+
+});
+
+
+function test_callbacks (conn, sql) {
+	const lookup = {
+		header: 0,
+		data: 0,
+		end: 0
+	};
+	return new Promise((resolve, reject) => {
+		conn.querystream(sql)
+			.on('error', (err) => {
+				return reject(err);
+			})
+			.on('header', (header) => {
+				lookup.header +=1;
+			})
+			.on('data', (data) => {
+				lookup.data +=1;
+			})
+			.on('end', () => {
+				lookup.end +=1;
+				resolve(lookup);
+			});
+	});
+}
+
+
+function test_result(conn, sql){
 	var result;
 	return new Promise(function(resolve, reject) {
 		//we simulate the same structure produced by buffer response (/query)
 			var query = conn.querystream(sql);	
-			//var query = pool.querystream(sql);	
 			var firstchunck = true;
 			var error_flag = false;
 			query
 			.on('error', function(err) {
-				//console.log("error");
-				//console.log(err);
 				error_flag = true;
 				reject(err);
 				// Handle error, an 'end' event will be emitted after this as well		
@@ -45,7 +83,6 @@ function test_querysteam(){
 				// the field packets for the rows to follow		
 				var strheader = JSON.stringify(header);
 				result = strheader.substr(0,strheader.length-1);
-				//console.log("pool load via querystream - header",pool.getRunningQueries());
 			})
 			.on('data', function(rows) {	
 				var strrows = JSON.stringify(rows);
@@ -61,26 +98,9 @@ function test_querysteam(){
 				if (!error_flag) {
 					// all rows have been received	withour error	
 					result += ']}';
-					//console.log(result);
 					var res = JSON.parse(result);
-					resolve(res);
-					//console.log("pool load via querystream - end",pool.getRunningQueries());		
+					resolve(res);		
 				}
 			});		
 		});	
 }	
-
-var query = test_querysteam();
-
-query.then(function(result) {
-  	console.log(result);
-  	console.log("result.data.length == 5 ?")
-	console.log(result.data.length == 5)
-	conn.close();
-  //pool.close();
-}).catch(function(error) {
-	console.error(error);
-});
-
-
-

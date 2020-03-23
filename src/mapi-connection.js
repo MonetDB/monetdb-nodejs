@@ -606,10 +606,10 @@ module.exports = function MapiConnection(options) {
 
     function _request(message, queue, streamflag) {
         var defer = Q.defer();
-        if (streamflag)
-        {var emitter = new EventEmitter();
-        defer.promise.on = emitter.on;
-        defer.promise.emit = emitter.emit;			
+        if (streamflag) {
+            const emitter = new EventEmitter();
+            defer.promise.on = emitter.on;
+            defer.promise.emit = emitter.emit;			
         }
 
         if(_state == 'destroyed') defer.reject(new Error('Cannot accept request: connection was destroyed.'));
