@@ -1,11 +1,12 @@
 
 var Q = require("q");
+const mdb = require("../index.js");
 
 let seed = 1;
 
 module.exports =  {
-    getMDB() {
-        return mdb({warnings: false, dbname: "test"});
+    getMDB(opts = {warnings: false, dbname: "test"}) {
+        return mdb(opts);
     },
 
     notSoRandom() {

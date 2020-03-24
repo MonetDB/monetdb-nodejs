@@ -4,13 +4,15 @@
 
 'use strict';
 
-var net = require('net');
-var crypto = require('crypto');
-var Q = require('q');
+const net = require('net');
+const crypto = require('crypto');
+const Q = require('q');
+const EventEmitter = require("events").EventEmitter;
+
 const StringDecoder = require('string_decoder').StringDecoder;
 const decoder = new StringDecoder('utf8');
 
-var utils = require('./utils');
+const utils = require('./utils');
 
 /**
  * <hannes@cwi.nl>
@@ -44,8 +46,11 @@ module.exports = function MapiConnection(options) {
     var _readLeftOver = 0;
     var _readFinal = false;
     var _readStr = '';
+    var header = null;
+	var flag_query = false;
+	var flag_header_treated = false;
     var _errorDetectionRegex = /(\\n!|^!)(.*)/g;
-
+    
     var _failPermanently = false; // only used for testing
 
     function _emptyMessageQueue(tag) {
@@ -143,6 +148,12 @@ module.exports = function MapiConnection(options) {
 			data.copy(buf, 0, 0, read_cnt);
             _readStr = _readStr + decoder.write(buf);
             
+            //mode stream detection
+			if (_curMessage){				
+				if (_curMessage.deferred.promise.on){
+					_handleDataStream();
+				}	
+			}
         } catch(e) {
             if(options.warning) {
                 options.warningFn(options.logger, 'Could not append read buffer to query result');
@@ -158,7 +169,17 @@ module.exports = function MapiConnection(options) {
         /* pass on reassembled messages */
         if (_readLeftOver == 0 && _readFinal) {
             _handleResponse(_readStr);
-            _readStr = '';
+            //Stream mode
+            if (_curMessage){
+				if (_curMessage.deferred.promise.on){						
+						_curMessage.deferred.promise.emit('end', null);
+						_curMessage.deferred.resolve({});
+				}
+			}
+            _readStr = '';            
+			header = null;
+			flag_query = false;
+			flag_header_treated = false;	
         }
 
         /* also, the buffer might contain more blocks or parts thereof */
@@ -166,6 +187,61 @@ module.exports = function MapiConnection(options) {
             var leftover = new Buffer(data.length - read_cnt);
             data.copy(leftover, 0, read_cnt, data.length);
             _handleData(leftover);
+        }
+    }
+
+    /**
+     * 
+     *
+     * Consume message received from _handleData and emit header and data event : used by querystream
+     *
+     * @param none
+     * @private
+     */
+    function _handleDataStream() {
+        if (_readStr.charAt(0) == '&') {					
+            flag_query = true;
+            let lines = _readStr.split('\n');
+            //header contains only 5 lines
+            //we parse only if we have at least 5 lines 
+            //otherwise next call will concat data with last _readStr
+            if (lines.length>5){					
+                header =_parseHeader(_readStr);							  
+                _curMessage.deferred.promise.emit('header', header);
+                //we consume 5 lines of _readStr
+                let headerLineNb = 5;
+                let idx = _readStr.indexOf('\n');
+                let realidx;
+                while (headerLineNb > 0) {
+                    headerLineNb--;
+                    realidx = idx;
+                    idx = _readStr.indexOf('\n', idx + 1);						
+                }
+                _readStr = _readStr.substring( realidx+1,_readStr.length);
+                //we set the flag for the header as we will be called again
+                flag_header_treated = true;
+                //we keep the header informations in _curMessage
+                _curMessage.header = header;
+            }				
+        }
+        //Called again - we began to extract data
+        if (flag_query && flag_header_treated){
+            let idx = _readStr.indexOf('\n');
+            let realidx=0;
+            //we consume lines of _readStr
+            while (idx != -1) {					
+                realidx = idx;
+                idx = _readStr.indexOf('\n', idx + 1);				
+            }
+            //Sometimes, the buffer contains more data than _readLeftOver (data.length>_readLeftOver)
+            //see the end of _handleData : in that case, we call again _handleData
+            //to concat the last string in _readStr but this is not a full line with \n
+            //we must not emit data in that case (realidx==0), otherwise, data will be emitted twice
+            if (realidx>0){
+                let extract = _readStr.substring(0, realidx);
+                _readStr = _readStr.substring(realidx+1,_readStr.length);				
+                _curMessage.deferred.promise.emit('data', _parseTuples(_curMessage.header.column_types, extract.split('\n')));					
+            }											
         }
     }
 
@@ -228,6 +304,11 @@ module.exports = function MapiConnection(options) {
         var errorMatch;
         if (errorMatch = response.match(_errorDetectionRegex)) {
             var error = errorMatch[0];
+            //stream mode
+            if (_curMessage.deferred.promise.on){	
+                _curMessage.deferred.promise.emit('error',new Error(error.substring(1, error.length)));		
+            }
+
             _curMessage.deferred.reject(new Error(error.substring(1, error.length)));
         }
 
@@ -284,12 +365,58 @@ module.exports = function MapiConnection(options) {
                 };
                 resp.col[colinfo.column] = colinfo.index;
                 resp.structure.push(colinfo);
-            }
+            }            
             resp.data = _parseTuples(column_types, lines.slice(5, lines.length-1));
-        }
+        }        
         return resp;
     }
 
+    /**
+     * 
+     *
+     * Parse a header that was reconstructed from the net.socket stream.
+     *
+     * @param msg Reconstructed message
+     * @returns a header structure, see documentation
+     * @private
+     */
+    function _parseHeader(msg) {
+        var lines = msg.split('\n');
+        var resp = {};
+        var tpe = lines[0].charAt(1);
+
+        /* table result, we only like Q_TABLE and Q_PREPARE for now */
+        if (tpe == 1 || tpe == 5) {
+            var hdrf = lines[0].split(' ');
+
+            resp.type='table';
+            resp.queryid   = parseInt(hdrf[1]);
+            resp.rows = parseInt(hdrf[2]);
+            resp.cols = parseInt(hdrf[3]);
+
+            var table_names  = _hdrline(lines[1]);
+            var column_names = _hdrline(lines[2]);
+            var column_types = _hdrline(lines[3]);
+            var type_lengths = _hdrline(lines[4]);
+
+            resp.structure = [];
+            resp.col = {};
+            for (var i = 0; i < table_names.length; i++) {
+                var colinfo = {
+                    table : table_names[i],
+                    column : column_names[i],
+                    type : column_types[i],
+                    typelen : parseInt(type_lengths[i]),
+                    index : i
+                };
+                resp.col[colinfo.column] = colinfo.index;
+                resp.structure.push(colinfo);
+            }
+            //resp.data = _parseTuples(column_types, lines.slice(5, lines.length-1));
+			resp.column_types = column_types;
+        }
+        return resp;
+    }
     /**
      * <hannes@cwi.nl>
      *
@@ -477,8 +604,14 @@ module.exports = function MapiConnection(options) {
         }
     }
 
-    function _request(message, queue) {
+    function _request(message, queue, streamflag) {
         var defer = Q.defer();
+        if (streamflag) {
+            const emitter = new EventEmitter();
+            defer.promise.on = emitter.on;
+            defer.promise.emit = emitter.emit;			
+        }
+
         if(_state == 'destroyed') defer.reject(new Error('Cannot accept request: connection was destroyed.'));
         else {
             _debug('Pushing request into ' + queue.tag + ' message queue: ' + message);
@@ -590,11 +723,11 @@ module.exports = function MapiConnection(options) {
         return _connectDeferred.promise;
     };
 
-    self.request = function(message) {
+    self.request = function(message, streamflag) {
         if(options.warnings && !_connectDeferred) {
             options.warningFn(options.logger, 'Request received before a call to connect. This request will not be processed until you have called connect.');
         }
-        return _request(message, _state == 'disconnected' ? _messageQueueDisconnected : _messageQueue);
+        return _request(message, _state == 'disconnected' ? _messageQueueDisconnected : _messageQueue, (streamflag === true));
     };
 
     self.close = function() {
