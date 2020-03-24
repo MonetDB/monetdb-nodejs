@@ -236,6 +236,38 @@ Returns a promise that resolves with an object with the following properties:
 | type                   | string                 | The type of the result (currently only 'table' is supported).
 
 
+### .querystream(query)
+Stream monetdb response.
+
+Example:
+```javascript
+var MDB = require('monetdb')();
+
+var conn = new MDB({dbname: 'mydb'});
+conn.connect();
+
+function test_stream (conn, sql) {
+    let result;
+	return new Promise((resolve, reject) => {
+		conn.querystream(sql)
+			.on('error', (err) => {
+				return reject(err);
+			})
+			.on('header', (header) => {
+                "add header to result"
+                
+            })
+			.on('data', (data) => {
+				"add data to result"
+			})
+			.on('end', () => {
+                "all rows being received"
+                resolve(result);
+			});
+	});
+}
+```
+
 ### .request(query, \[params\], \[prettyResult\])
 Alias for [MonetDBConnection.query](#mdbconnection_query).
 
