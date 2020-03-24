@@ -724,11 +724,10 @@ module.exports = function MapiConnection(options) {
     };
 
     self.request = function(message, streamflag) {
-        if (!streamflag) streamflag = false;
         if(options.warnings && !_connectDeferred) {
             options.warningFn(options.logger, 'Request received before a call to connect. This request will not be processed until you have called connect.');
         }
-        return _request(message, _state == 'disconnected' ? _messageQueueDisconnected : _messageQueue, streamflag);
+        return _request(message, _state == 'disconnected' ? _messageQueueDisconnected : _messageQueue, (streamflag === true));
     };
 
     self.close = function() {
