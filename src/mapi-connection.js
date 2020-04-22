@@ -367,7 +367,11 @@ module.exports = function MapiConnection(options) {
                 resp.structure.push(colinfo);
             }            
             resp.data = _parseTuples(column_types, lines.slice(5, lines.length-1));
-        }        
+        }
+        else if (tpe == 2) {
+            resp.affected_rows = parseInt(lines[0].split(' ')[1]);
+        }
+
         return resp;
     }
 
