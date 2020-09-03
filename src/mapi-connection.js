@@ -427,6 +427,7 @@ module.exports = function MapiConnection(options) {
     function _parseTuples(types, lines) {
         var state = 'INCRAP';
         var resultarr = [];
+        let endQuotes = 0;
         lines.forEach(function(line) {
             var resultline = [];
             var cCol = 0;
@@ -447,7 +448,7 @@ module.exports = function MapiConnection(options) {
                         break;
                     case 'INTOKEN':
                         if (chr == ',' || curPos == line.length - 2) {
-                            if (curtok == 'NULL') {
+                            if (curtok == 'NULL' && endQuotes === 0) {
                                 resultline.push(null);
 
                             } else {
@@ -484,6 +485,7 @@ module.exports = function MapiConnection(options) {
                             cCol++;
                             state = 'INCRAP';
                             curtok = '';
+                            endQuotes = 0;
                         } else {
                             curtok += chr;
                         }
@@ -500,6 +502,7 @@ module.exports = function MapiConnection(options) {
                     case 'INQUOTES':
                         if (chr == '"') {
                             state = 'INTOKEN';
+                            endQuotes++;
                             break;
                         }
                         if (chr == '\\') {

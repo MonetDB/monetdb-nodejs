@@ -365,6 +365,19 @@ describe("#Regular querying", function() {
             .should.eventually.have.property("data")
             .that.deep.equals([[null]]);
     });
+
+    it("should handle NULL as string", async function() {
+        const sql = `create table null_as_string(i int, s string);
+        copy 3 records into null_as_string from stdin delimiters ',',E'\n' NULL as '';
+        ,NULL
+        1,NULL
+        2,"foo"
+        `
+        await conn.query(sql);
+        let res = await conn.query("select * from null_as_string;");
+        const expected = [[null, "NULL"], [1, "NULL"], [2, '"foo"']]
+        res.data.should.deep.equal(expected);
+    });
 });
 
 
