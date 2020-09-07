@@ -3,6 +3,7 @@ var chaiAsPromised = require("chai-as-promised");
 var Q = require("q");
 
 var should = chai.should();
+const expect = chai.expect;
 chai.use(chaiAsPromised);
 
 var mdb = require("../index.js");
@@ -501,8 +502,8 @@ describe("#Time zone offset", function() {
 describe("#Prepared queries", function() {
     this.timeout(10000);
 
-    var MDB = getMDB();
-    var conn = new MDB();
+    const MDB = getMDB();
+    const conn = new MDB();
     conn.connect();
 
     beforeEach("Starting transaction", function() {
@@ -731,6 +732,26 @@ describe("#Prepared queries", function() {
         return conn.query("INSERT INTO foo VALUES (?, ?, ?, ?)", [2, 4.5, "s"])
             .should.be.rejected;
     });
+    
+    // KEEP AROUND this test relates to https://www.monetdb.org/bugzilla/show_bug.cgi?id=6832. Uncommmet when 
+    // prepare statememts fix is available upstream.
+    //it("should proprely handle failing concurent requests", async function(){
+    //    // need isolated connection for this test
+    //    const conn = new MDB();
+    //    conn.connect();
+    //    const req1 = conn.query("select cast(? as int);", [42])
+    //        .catch(function(err){
+    //            console.error("req1: ", err);
+    //        });
+    //    const req2 = conn.query("select boom;")
+    //        .catch(function(err) {
+    //            console.log("req2: ", err);
+    //        });
+    //    const res1 = await req1;
+    //    const res2 = await req2;
+    //    conn.destroy();
+    //    expect(res1 !== undefined).to.be.true;
+    //});
 });
 
 describe("#CallbackWrapper", function() {
