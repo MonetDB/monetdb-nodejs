@@ -265,7 +265,7 @@ module.exports = function MapiConnection(options) {
         }
 
         /* prompt, good */
-        if (response == '') {
+        if (response == '' && _state === 'started') {
             _setState('ready');
             // do not resolve _curMessage here, since this prompt should only happen directly after
             // authentication, which circumvents the _curMessage.

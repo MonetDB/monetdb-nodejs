@@ -379,6 +379,10 @@ describe("#Regular querying", function() {
         const expected = [[null, "NULL"], [1, "NULL"], [2, '"foo"']]
         res.data.should.deep.equal(expected);
     });
+
+    it("should be be fulfiled on procedure call queries", function(){
+        return conn.query("call sys.clearrejects();").should.be.fulfilled;
+    });
 });
 
 

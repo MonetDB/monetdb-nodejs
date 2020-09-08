@@ -32,7 +32,7 @@ describe("#Connection", function() {
     it("should fail on invalid hostname", async function() {
         const conn = new MDB({host: "veryinvalidhostnamethathopefullyresolvesnowhere"});
         try {
-           await conn.connect().should.be.rejected;
+            return await conn.connect().should.be.rejected;
         } finally {
             conn.close();
         }
@@ -41,7 +41,7 @@ describe("#Connection", function() {
     it("should fail on non existing database", async function() {
         const conn = new MDB({dbname: "nonexist"});
         try {
-            await conn.connect().should.be.rejected;
+            return await conn.connect().should.be.rejected;
          } finally {
              conn.close();
          }
@@ -50,7 +50,7 @@ describe("#Connection", function() {
     it("should fail on invalid user", async function() {
         const conn = new MDB({user: "nonexist"});
         try {
-            await conn.connect().should.be.rejected;
+            return await conn.connect().should.be.rejected;
          } finally {
              conn.close();
          }
@@ -59,7 +59,7 @@ describe("#Connection", function() {
     it("should connect", async function() {
         const conn = new MDB();
         try {
-            await conn.connect().should.not.be.rejected;
+            return await conn.connect().should.not.be.rejected;
          } finally {
              conn.close();
          }
@@ -75,7 +75,7 @@ describe("#Connection", function() {
                 conn.query("SELECT 3")
             ];
             const res = await Promise.all(qs);
-            res.should.not.be.null;
+            return res.should.not.be.null;
         } finally {
             conn.close();
         }
@@ -85,7 +85,7 @@ describe("#Connection", function() {
         const conn = new MDB();
         try {
             conn.destroy();
-            await Promise.all([
+             return await Promise.all([
                 conn.query("SELECT 1"),
                 conn.query("SELECT 2"),
                 conn.query("SELECT 3")
@@ -142,7 +142,7 @@ describe("#Connection", function() {
     it("should fail on non existing defaultSchema", async function() {
         const conn = new MDB({defaultSchema: "non_existant"});
         try {
-            await conn.connect().should.be.rejected;
+            return await conn.connect().should.be.rejected;
         } finally {
             conn.close();
         }
