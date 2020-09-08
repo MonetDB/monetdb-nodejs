@@ -260,7 +260,6 @@ module.exports = function MapiConnection(options) {
      * @private
      */
     function _handleResponse(response) {
-        debugger;;
         if (options.debugMapi) {
             options.debugMapiFn(options.logger, 'RX', response);
         }
