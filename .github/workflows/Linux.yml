@@ -7,7 +7,9 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
+    env:
+      DBFARM: ${{env.HOME}}/dbfarm
 
     strategy:
       matrix:
@@ -20,7 +22,24 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
-      - run: bash test/install-monetdb.sh
-      - run: bash test/start-monetdb.sh
-      - run: npm t 
+      - name: Install MonetDB
+        run: |
+            sudo apt-get update -qq
+            sudo apt-get install -y software-properties-common curl make
+            curl https://www.monetdb.org/downloads/MonetDB-GPG-KEY | sudo apt-key add -
+            sudo add-apt-repository 'deb http://dev.monetdb.org/downloads/deb/ focal monetdb'
+            sudo apt-get update -qq
+            sudo apt-get install -y monetdb5-server
+           
+      - name: Run MonetDB            
+        run: |
+            echo "user=monetdb\npassword=monetdb\n" > ${{ env.HOME}}/.monetdb
+            monetdbd create ${{ env.DBFARM }}
+            monetdbd start ${{ env.DBFARM }} 
+      - name: Create database
+        run: |
+            bash test/start-monetdb.sh
+      - name: Run Unit-Tests
+        run: |
+            npm t
 
