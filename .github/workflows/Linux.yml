@@ -30,12 +30,7 @@ jobs:
             sudo add-apt-repository 'deb http://dev.monetdb.org/downloads/deb/ focal monetdb'
             sudo apt-get update -qq
             sudo apt-get install -y monetdb5-server
-           
-      - name: Run MonetDB            
-        run: |
-            monetdbd create ${{ env.DBFARM }}
-            monetdbd start ${{ env.DBFARM }} 
-      - name: Create database
+      - name: start database
         run: |
             bash test/start-monetdb.sh
       - name: Run Unit-Tests
