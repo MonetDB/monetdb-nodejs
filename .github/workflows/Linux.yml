@@ -9,7 +9,7 @@ jobs:
 
     runs-on: ubuntu-20.04
     env:
-      DBFARM: ${{ env.HOME }}/dbfarm
+      DBFARM: dbfarm
 
     strategy:
       matrix:
@@ -33,7 +33,6 @@ jobs:
            
       - name: Run MonetDB            
         run: |
-            echo "user=monetdb\npassword=monetdb\n" > ${{ env.HOME }}/.monetdb
             monetdbd create ${{ env.DBFARM }}
             monetdbd start ${{ env.DBFARM }} 
       - name: Create database
