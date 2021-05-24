@@ -1,9 +1,10 @@
 # MonetDB NodeJS connector version 1.\*
 
-[![Build Status](https://travis-ci.org/MonetDB/monetdb-nodejs.svg)](https://travis-ci.org/MonetDB/monetdb-nodejs)
+[![Linux](https://github.com/MonetDB/monetdb-nodejs/workflows/Linux/badge.svg)
+[![macOS](https://github.com/MonetDB/monetdb-nodejs/workflows/macos/badge.svg)
+[![Travis CI](https://travis-ci.org/MonetDB/monetdb-nodejs.svg)](https://travis-ci.org/MonetDB/monetdb-nodejs)
 [![Coverage Status](https://coveralls.io/repos/MonetDB/monetdb-nodejs/badge.svg?branch=master&service=github)](https://coveralls.io/github/MonetDB/monetdb-nodejs?branch=master)
 [![npm version](https://badge.fury.io/js/monetdb.svg)](https://badge.fury.io/js/monetdb)
-[![Dependency Status](https://david-dm.org/MonetDB/monetdb-nodejs.svg)](https://david-dm.org/MonetDB/monetdb-nodejs)
 
 
 This NodeJS module provides an easy and powerful way to use MonetDB inside your NodeJS programs.
