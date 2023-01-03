@@ -451,10 +451,10 @@ describe("#Time zone offset", function() {
     var baseTimestamp = "2015-10-29 11:31:35.000000";
     var MDB = getMDB();
 
-    function setupConnection(timezoneOffset) {
+    function setupConnection(timezoneOffset, tbl) {
         var conn = timezoneOffset !== undefined ? new MDB({timezoneOffset: timezoneOffset}) : new MDB();
         conn.connect();
-        conn.query("START TRANSACTION; CREATE TABLE foo (a TIMESTAMPTZ)");
+        conn.query(`START TRANSACTION; CREATE TABLE ${tbl} (a TIMESTAMPTZ)`);
         return conn;
     }
 
@@ -463,11 +463,11 @@ describe("#Time zone offset", function() {
         conn.destroy();
     }
 
-    function testTimezoneOffset(timezoneOffset, timestampIn, timestampOut) {
+    function testTimezoneOffset(timezoneOffset, timestampIn, timestampOut, tbl="foo") {
         if(!timestampOut) timestampOut = timestampIn;
-        var conn = setupConnection(timezoneOffset);
-        return conn.query("INSERT INTO foo VALUES ('" + timestampIn + "')").then(function() {
-            return conn.query("SELECT * FROM foo");
+        var conn = setupConnection(timezoneOffset, tbl);
+        return conn.query(`INSERT INTO ${tbl} VALUES ('${timestampIn}')`).then(function() {
+            return conn.query(`SELECT * FROM ${tbl}`);
         }).fin(function() {
             closeConnection(conn);
         }).should.eventually.have.property("data")
@@ -476,7 +476,7 @@ describe("#Time zone offset", function() {
 
     it("should be automatically set to the current time zone", function() {
         var timestampCurTz = baseTimestamp + constructCurTimezoneStr();
-        return testTimezoneOffset(undefined, timestampCurTz);
+        return testTimezoneOffset(undefined, timestampCurTz, undefined);
     });
 
     it("should be customizable", function() {
@@ -487,10 +487,10 @@ describe("#Time zone offset", function() {
         var timestampPlus1030 = baseTimestamp + "+10:30";
         var timestampMinus1030 = baseTimestamp + "-10:30";
         return Q.all([
-            testTimezoneOffset(offset2, timestampPlus2),
-            testTimezoneOffset(-offset2, timestampMinus2),
-            testTimezoneOffset(offset1030, timestampPlus1030),
-            testTimezoneOffset(-offset1030, timestampMinus1030)
+            testTimezoneOffset(offset2, timestampPlus2, undefined, 'foo1'),
+            testTimezoneOffset(-offset2, timestampMinus2, undefined, 'foo2'),
+            testTimezoneOffset(offset1030, timestampPlus1030, undefined, 'foo3'),
+            testTimezoneOffset(-offset1030, timestampMinus1030, undefined, 'foo4')
         ]);
     });
 
