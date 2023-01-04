@@ -2,6 +2,7 @@ import { Socket, createConnection } from 'node:net';
 import { once, EventEmitter, Abortable } from 'events';
 import { Buffer } from 'buffer';
 import { createHash } from 'node:crypto';
+import defaults from './defaults';
 
 const MAPI_BLOCK_SIZE = (1024 * 8) - 2;
 const MAPI_HEADER_SIZE = 2;
@@ -38,25 +39,68 @@ enum MAPI_LANGUAGE {
     CONTROL='control'
 }
 
-interface MapiOptions {
+interface MapiConfig {
     database: string;
     username: string;
     password: string;
+    language?: MAPI_LANGUAGE;
     host?: string;
     port?: number;
+    unixSocket?: string;
+    timeout?: number;
 }
 
-// MAPI URI:
-//  tcp socket:  mapi:monetdb://[<username>[:<password>]@]<host>[:<port>]/<database>
-//  unix domain socket: mapi:monetdb:///[<username>[:<password>]@]path/to/socket?database=<database>
+interface HandShakeOption {
+    level: number;
+    name: string;
+    value: any;
+    fallback?: (v: any) => void;
+    sent: boolean;
+}
+
 
 function isMapiUri(uri:string): boolean {
     const regx = new RegExp('^mapi:monetdb://*', 'i');
     return regx.test(uri);
 }
 
-function parseMapiUri(uri: string) {
-    // return parsed result as object
+function parseMapiUri(uri: string): MapiConfig {
+    if (isMapiUri(uri)) {
+        const res = {database: '', username: '', password: ''};
+        // TODO return parsed result as object
+        return res;
+    }
+    throw new Error(`Unvalid MAPI URI ${uri}!`);
+}
+
+function createMapiConfig(params?: MapiConfig): MapiConfig {
+    const database = (params && params.database)? params.database : defaults.database;
+    if (typeof database != 'string') {
+        throw new Error("database name must be string");
+    }
+
+    const username = (params && params.username)? params.username : defaults.username;
+    const password = (params && params.password)? params.password : defaults.password;
+
+    let host = params && params.host;
+    const unixSocket = params && params.unixSocket;
+    if (!unixSocket && !host)
+        host = defaults.host;
+    if (typeof host != 'string') {
+        throw new Error(`${host} is not valid hostname`);
+    }
+    const port = (params && params.port)? Number(params.port) : Number(defaults.port);
+    if (isNaN(port)) {
+        throw new Error(`${port} is not valid port`);
+    }
+
+    const timeout = (params && params.timeout)? Number(params.timeout) : undefined;
+    if (timeout && isNaN(timeout)) {
+        throw new Error('timeout must be number');
+    }
+    const language = (params && params.language)? params.language : MAPI_LANGUAGE.SQL;
+
+    return {database, username, password, language, host, port, timeout, unixSocket};
 }
 
 
@@ -151,49 +195,54 @@ class Segment {
     }
 }
 
-class MAPIConnection extends EventEmitter {
+class MapiConnection extends EventEmitter {
     state: MAPI_STATE;
     socket: Socket;
-    timeout?: number; 
-    username?: string;
-    password?: string;
-    database?: string;
-    hostname?: string;
+    database: string;
+    timeout: number; 
+    username: string;
+    password: string;
+    host?: string;
+    unixSocket?: string;
+    port: number;
     language: MAPI_LANGUAGE;
-    port?: number;
+    handShakeOptions?: HandShakeOption[];
     redirects: number;
     store: Store;
 
-    constructor() {
+    constructor(config: MapiConfig) {
         super();
         this.state = MAPI_STATE.INIT;
         this.socket = null;
         this.redirects = 0;
         this.store = new Store(MAPI_BLOCK_SIZE);
+        this.database = config.database;
+        this.language = config.language || MAPI_LANGUAGE.SQL;
+        this.unixSocket = config.unixSocket;
+        this.host = config.host;
+        this.port = config.port;
+        this.username = config.username;
+        this.password = config.password;
+        this.timeout = config.timeout;
     }
 
-    connect(database: string, username?: string, password?: string,
-            hostname?: string, port?: number, timeout?: number, language=MAPI_LANGUAGE.SQL): Promise<any[]> {
-        if (isMapiUri(database)) {
-            // parse URI
-        } else {
-            this.username = username;
-            this.password = password;
-            this.port = port;
-            this.database = database;
-            this.language = language;
-        }
-
-        this.socket = createConnection(this.port, this.hostname, () => this.state = MAPI_STATE.CONNECTED);
+    connect(handShakeOptions: HandShakeOption[] = []): Promise<any[]> {
+        this.handShakeOptions = handShakeOptions;
+        // TODO unix socket
+        this.socket = createConnection(this.port, this.host, () => this.state = MAPI_STATE.CONNECTED);
         this.socket.setKeepAlive(true);
         this.socket.setNoDelay(true);
-        if (timeout)
-            this.socket.setTimeout(timeout);
+        if (this.timeout)
+            this.socket.setTimeout(this.timeout);
         this.socket.addListener('data', this.recv.bind(this));
         this.socket.addListener('error', this.handleSocketError.bind(this));
         this.socket.addListener('timeout', this.handleTimeout.bind(this));
 
         return once(this, 'ready');
+    }
+
+    ready(): boolean {
+        return this.state === MAPI_STATE.READY;
     }
 
     disconnect() {
@@ -231,7 +280,7 @@ class MAPIConnection extends EventEmitter {
         }
     }
 
-    private send(msg: string): void {
+    send(msg: string): void {
         console.log(`Sending ${msg}`);
         let buff = Buffer.from(msg);
         let last = 0;
@@ -300,4 +349,4 @@ class MAPIConnection extends EventEmitter {
 
 }
 
-export default MAPIConnection;
+export { MapiConfig, MapiConnection, parseMapiUri, createMapiConfig };
