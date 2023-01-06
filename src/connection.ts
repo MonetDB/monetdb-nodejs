@@ -1,5 +1,6 @@
 import { once, EventEmitter, Abortable } from 'events';
-import { MapiConfig, MapiConnection, parseMapiUri, createMapiConfig } from './mapi';
+import { MapiConfig, MapiConnection,
+    parseMapiUri, createMapiConfig, HandShakeOption } from './mapi';
 
 // MAPI URI:
 //  tcp socket:  mapi:monetdb://[<username>[:<password>]@]<host>[:<port>]/<database>
@@ -10,7 +11,9 @@ type ConnectCallback = (err?: Error) => void;
 
 
 class Connection extends EventEmitter {
-    autoCommit: boolean;
+    autoCommit?: boolean;
+    replySize?: number;
+    sizeHeader?: boolean;
     mapi: MapiConnection;
 
 
@@ -21,14 +24,16 @@ class Connection extends EventEmitter {
     }
 
     connect(callback?: ConnectCallback): Promise<boolean> {
-        // TODO hand shake options
         const options = [
-
+            new HandShakeOption(1, 'auto_commit', false, this.setAutocommit),
+            new HandShakeOption(2, 'reply_size', 100, this.setReplySize),
+            new HandShakeOption(3, 'size_header', true, this.setSizeHeader),
+            new HandShakeOption(5, 'time_zone', (new Date().getTimezoneOffset()*60), this.setTimezone)
         ];
         const mapi = this.mapi;
         return new Promise(async function(resolve, reject) {
             try {
-                await mapi.connect();
+                await mapi.connect(options);
                 resolve(mapi.ready());
                 if (callback)
                     callback();
@@ -40,16 +45,40 @@ class Connection extends EventEmitter {
         });
     }
 
-    close() {
+    close(): Promise<boolean> {
         return this.mapi.disconnect();
     }
 
-    execute(query: string) {
-        return this.command(`s${query}\n;`);
+    execute(sql: string) {
+        const query = `s${sql};\n`;
+        return this.mapi.send(query);
     }
 
     private command(str: string): void {
         return this.mapi.send(str);
+    }
+
+    setAutocommit(v: boolean): void {
+        const cmd = `Xauto_commit ${Number(v)}`;
+        this.command(cmd);
+        this.autoCommit = v;
+    }
+
+    setReplySize(v: number) {
+        const cmd = `Xreply_size ${Number(v)}`;
+        this.command(cmd);
+        this.replySize = Number(v);
+    }
+
+    setSizeHeader(v: boolean) {
+        const cmd = `Xsizeheader ${Number(v)}`;
+        this.command(cmd);
+        this.sizeHeader = v;
+    }
+
+    setTimezone(sec: number) {
+        const qry = `SET TIME ZONE INTERVAL '${sec}' SECOND`;
+        return this.execute(qry);
     }
 
 }

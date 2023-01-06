@@ -1,4 +1,5 @@
 import { Socket, createConnection } from 'node:net';
+import { Readable, Writable } from 'node:stream';
 import { once, EventEmitter, Abortable } from 'events';
 import { Buffer } from 'buffer';
 import { createHash } from 'node:crypto';
@@ -48,14 +49,24 @@ interface MapiConfig {
     port?: number;
     unixSocket?: string;
     timeout?: number;
+    autoCommit?: boolean;
+    replySize?: number;
 }
 
-interface HandShakeOption {
+class HandShakeOption {
     level: number;
     name: string;
     value: any;
     fallback?: (v: any) => void;
     sent: boolean;
+    constructor(level:number, name:string, value: any,
+                fallback: (v: any) => void, sent=false) {
+        this.level = level;
+        this.name = name;
+        this.value = value;
+        this.fallback = fallback;
+        this.sent = sent;
+    }
 }
 
 
@@ -237,6 +248,7 @@ class MapiConnection extends EventEmitter {
         this.socket.addListener('data', this.recv.bind(this));
         this.socket.addListener('error', this.handleSocketError.bind(this));
         this.socket.addListener('timeout', this.handleTimeout.bind(this));
+        this.socket.addListener('close', () => this.emit('close'));
 
         return once(this, 'ready');
     }
@@ -245,22 +257,27 @@ class MapiConnection extends EventEmitter {
         return this.state === MAPI_STATE.READY;
     }
 
-    disconnect() {
-        this.send("");
-        this.socket.end();
-        this.state = MAPI_STATE.INIT;
-        this.socket = null;
-        this.redirects = 0;
+    disconnect(): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            this.socket.end(() => {
+                this.socket.destroy();
+                this.socket = null;
+                this.redirects = 0;
+                this.state = MAPI_STATE.INIT;
+                resolve(this.state === MAPI_STATE.INIT);
+            });
+        })
     }
 
-    private login(resp: string): void {
-        const [challenge, identity, protocol, hashes, endian, algo] = resp.split(':');
+    private login(challenge: string): void {
+        const challengeParts = challenge.split(':');
+        const [salt, identity, protocol, hashes, endian, algo, opt_level] = challengeParts;
         let password: string;
         try {
             password = createHash(algo).update(this.password).digest('hex');
         } catch(err) {
-            console.error(algo)
-            this.emit('error', err);
+            console.error(err)
+            this.emit('error', new TypeError(`Algorithm ${algo} not supported`));
             return;
         }
         let pwhash = null;
@@ -268,15 +285,35 @@ class MapiConnection extends EventEmitter {
         for (const algo of hashes.split(',')) {
             try {
                 const hash = createHash(algo);
-                pwhash = `{${algo}}` + hash.update(password + challenge).digest('hex');
+                pwhash = `{${algo}}` + hash.update(password + salt).digest('hex');
                 break;
             } catch {}
         }
         if (pwhash) {
-            const counterResponse = `${endian}:${this.username}:${pwhash}:${this.language}:${this.database}:`;
+            let counterResponse = `${endian}:${this.username}:${pwhash}:${this.language}:${this.database}:`;
+            if (opt_level && opt_level.startsWith('sql=')) {
+                let level = 0;
+                counterResponse += 'FILETRANS:';
+                try {
+                    level = Number(opt_level.substring(4));
+                } catch(err) {
+                    this.emit('error', new TypeError('Invalid handshake options level in server challenge'));
+                    return;
+                }
+                // process handshake options
+                const options = [];
+                for (const opt of this.handShakeOptions) {
+                    if (opt.level < level) {
+                        options.push(`${opt.name}=${Number(opt.value)}`);
+                        opt.sent = true;
+                    }
+                }
+                if (options)
+                    counterResponse += options.join(',') + ':';
+            }
             this.send(counterResponse);
         } else {
-            this.emit('error', 'Unsupported hash algorithm')
+            this.emit('error', new TypeError(`None of the hashes ${hashes} are supported`));
         }
     }
 
@@ -320,13 +357,13 @@ class MapiConnection extends EventEmitter {
     }
 
     private handleResponse(resp: string): void {
-        console.log('>>', resp);
+        console.log(resp);
         if (resp.startsWith(MSG_ERROR)) {
             const err = new Error(resp.substring(1));
             this.emit('error', err);
         }
 
-        if (this.state != MAPI_STATE.READY) {
+        if (this.state == MAPI_STATE.CONNECTED) {
             const isRedirect = resp.startsWith(MSG_REDIRECT);
             if (isRedirect) {
                 this.redirects += 1;
@@ -349,4 +386,4 @@ class MapiConnection extends EventEmitter {
 
 }
 
-export { MapiConfig, MapiConnection, parseMapiUri, createMapiConfig };
+export { MapiConfig, MapiConnection, parseMapiUri, createMapiConfig, HandShakeOption };
