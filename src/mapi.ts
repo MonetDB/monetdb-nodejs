@@ -1,4 +1,4 @@
-import { Socket, createConnection } from 'node:net';
+import { Socket, SocketConnectOpts } from 'node:net';
 import { Readable, Writable } from 'node:stream';
 import { once, EventEmitter, Abortable } from 'events';
 import { Buffer } from 'buffer';
@@ -128,14 +128,15 @@ class Store {
     append(data: Buffer): number {
         let srcStartIndx = 0;
         let srcEndIndx = srcStartIndx + data.length;
-        let segment = this.segments.pop();
+        const l = this.segments.length;
+        let segment = (l > 0 && this.segments[l - 1]) || undefined;
         let bytesCopied = 0;
         if (!this.isFull()) {
             // check if out of space
             if ((this.buff.length - this.offset) < data.length)
                 this.expand(MAPI_BLOCK_SIZE);
 
-            if (segment === undefined || segment.isFull()) {
+            if (segment === undefined || (segment && segment.isFull())) {
                 const hdr = data.readUInt16LE(0);
                 const last = (hdr & 1) === 1;
                 const bytes = hdr >> 1;
@@ -145,20 +146,21 @@ class Store {
                 segment = new Segment(bytes, last, this.offset, bytesCopied);
                 this.segments.push(segment);
                 this.offset += bytesCopied;
+                return MAPI_HEADER_SIZE + bytesCopied;
             } else {
                 const byteCntToRead = segment.bytes - segment.bytesOffset;
                 srcEndIndx = srcStartIndx + byteCntToRead;
                 bytesCopied = data.copy(this.buff, this.offset, srcStartIndx, srcEndIndx);
                 this.offset += bytesCopied;
                 segment.bytesOffset += bytesCopied;
-                console.log(`segment is full $(segment.bytesOffset === segment.bytes)`);
-                this.segments.push(segment);
+                console.log(`segment is full ${segment.bytesOffset === segment.bytes}`);
+                return bytesCopied;
             }
         }
-        return bytesCopied;
     }
 
     expand(byteCount: number): number {
+        console.log('expanding ...');
         const buff = Buffer.allocUnsafe(this.buff.length + byteCount).fill(0);
         const bytesCopied = this.buff.copy(buff);
         this.buff = buff;
@@ -190,9 +192,9 @@ class Store {
 }
 
 class Segment {
-    offset: number;
+    offset: number; // where segment starts
     bytes: number;
-    bytesOffset: number;
+    bytesOffset: number; // meaningful bytes e.g. if offset + bytesOffset == bytes, then segment full
     last: boolean;
     constructor(bytes: number, last: boolean, offset: number, bytesOffset: number) {
         this.bytes = bytes;
@@ -224,7 +226,16 @@ class MapiConnection extends EventEmitter {
     constructor(config: MapiConfig) {
         super();
         this.state = MAPI_STATE.INIT;
-        this.socket = null;
+        this.socket = new Socket();
+        if (config.timeout)
+            this.socket.setTimeout(config.timeout);
+        this.socket.addListener('data', this.recv.bind(this));
+        this.socket.addListener('error', this.handleSocketError.bind(this));
+        this.socket.addListener('timeout', this.handleTimeout.bind(this));
+        this.socket.addListener('close', () => {
+            console.log('socket close event');
+            this.emit('end');
+        });
         this.redirects = 0;
         this.store = new Store(MAPI_BLOCK_SIZE);
         this.database = config.database;
@@ -234,21 +245,20 @@ class MapiConnection extends EventEmitter {
         this.port = config.port;
         this.username = config.username;
         this.password = config.password;
-        this.timeout = config.timeout;
     }
 
     connect(handShakeOptions: HandShakeOption[] = []): Promise<any[]> {
         this.handShakeOptions = handShakeOptions;
         // TODO unix socket
-        this.socket = createConnection(this.port, this.host, () => this.state = MAPI_STATE.CONNECTED);
-        this.socket.setKeepAlive(true);
-        this.socket.setNoDelay(true);
-        if (this.timeout)
-            this.socket.setTimeout(this.timeout);
-        this.socket.addListener('data', this.recv.bind(this));
-        this.socket.addListener('error', this.handleSocketError.bind(this));
-        this.socket.addListener('timeout', this.handleTimeout.bind(this));
-        this.socket.addListener('close', () => this.emit('close'));
+        const opt: SocketConnectOpts = {
+            port: this.port,
+            host: this.host,
+            noDelay: true
+        };
+        this.socket.connect(opt, () => {
+            this.state = MAPI_STATE.CONNECTED;
+            this.socket.setKeepAlive(true);
+        });
 
         return once(this, 'ready');
     }
@@ -260,8 +270,6 @@ class MapiConnection extends EventEmitter {
     disconnect(): Promise<boolean> {
         return new Promise((resolve, reject) => {
             this.socket.end(() => {
-                this.socket.destroy();
-                this.socket = null;
                 this.redirects = 0;
                 this.state = MAPI_STATE.INIT;
                 resolve(this.state === MAPI_STATE.INIT);
@@ -317,22 +325,23 @@ class MapiConnection extends EventEmitter {
         }
     }
 
-    send(msg: string): void {
-        console.log(`Sending ${msg}`);
+    send(msg: string, callback?: (err?: Error) => void): void {
+        if (msg)
+            console.log(`Sending ${msg}`);
         let buff = Buffer.from(msg);
         let last = 0;
         let offset = 0;
         while (last === 0) {
-            const bs = Math.min((buff.length - offset) + MAPI_HEADER_SIZE, MAPI_BLOCK_SIZE);
-            last = (bs < MAPI_BLOCK_SIZE) ? 1 : 0;
-            const bytesOut = bs - MAPI_HEADER_SIZE;
-            const outBuff = Buffer.allocUnsafe(bs).fill(0);
-            let pos = 0;
-            pos += outBuff.writeUint16LE((bytesOut << 1) | last , 0);
-            const start = offset;
-            const end = offset + bytesOut;
-            offset += buff.copy(outBuff, pos, start, end);
-            this.socket.write(outBuff);
+            const seg = buff.subarray(offset, MAPI_BLOCK_SIZE);
+            last = (seg.length < MAPI_BLOCK_SIZE) ? 1 : 0;
+            const header = Buffer.allocUnsafe(2).fill(0);
+            header.writeUint16LE((seg.length << 1) | last , 0);
+            const outBuff = Buffer.concat([header, seg]);
+            this.socket.write(outBuff, (err?: Error) => {
+                if (last && callback)
+                    callback(err);
+            });
+            offset += seg.length;
         }
     }
 
@@ -344,15 +353,16 @@ class MapiConnection extends EventEmitter {
         console.error(err);
     }
 
-    private recv(data: Buffer) {
-        const bytesLeftOver = data.length - this.store.append(data);
+    private recv(data: Buffer): void {
+        const offset = this.store.append(data);
+        const bytesLeftOver = data.length - offset;
         if (this.store.isFull()) {
-            return this.handleResponse(this.store.drain());
+            this.handleResponse(this.store.drain());
         }
         if (bytesLeftOver) {
-            const msg = `some $(bytesLeftOver) bytes left over!`;
+            const msg = `some ${bytesLeftOver} bytes left over!`;
             console.warn(msg);
-            this.recv(data.subarray(bytesLeftOver));
+            this.recv(data.subarray(offset));
         }
     }
 
@@ -369,7 +379,7 @@ class MapiConnection extends EventEmitter {
                 this.redirects += 1;
                 console.log('received redirect');
                 if (this.redirects > MAX_REDIRECTS)
-                   this.emit('error', `Exceeded max number of redirects $(MAX_REDIRECTS)`);
+                   this.emit('error', new Error(`Exceeded max number of redirects ${MAX_REDIRECTS}`));
                 return;
             }
             if (resp.startsWith(MSG_OK) || resp.startsWith('\x00')) {
@@ -380,10 +390,7 @@ class MapiConnection extends EventEmitter {
             }
             return this.login(resp);
         }
-
     }
-
-
 }
 
 export { MapiConfig, MapiConnection, parseMapiUri, createMapiConfig, HandShakeOption };
