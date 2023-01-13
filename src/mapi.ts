@@ -405,8 +405,8 @@ class Response {
     }
 
     isQueryResponse(): boolean {
-        if (this.type) {
-            return this.type.startsWith(MSG_Q);
+        if (this.result.type) {
+            return this.result.type.startsWith(MSG_Q);
         }
         return this.firstCharacter() === MSG_Q;
     }
@@ -686,7 +686,7 @@ class MapiConnection extends EventEmitter {
                 if (err) {
                     reject(err);
                 } else {
-                    const resp = new Response(stream, resolve);
+                    const resp = new Response(stream, {resolve, reject});
                     this.queue.push(resp)
                 }
             });
