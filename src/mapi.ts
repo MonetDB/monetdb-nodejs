@@ -81,7 +81,7 @@ function parseMapiUri(uri: string): MapiConfig {
         // TODO return parsed result as object
         return res;
     }
-    throw new Error(`Unvalid MAPI URI ${uri}!`);
+    throw new Error(`Invalid MAPI URI ${uri}!`);
 }
 
 function createMapiConfig(params?: MapiConfig): MapiConfig {
@@ -114,15 +114,199 @@ function createMapiConfig(params?: MapiConfig): MapiConfig {
     return {database, username, password, language, host, port, timeout, unixSocket};
 }
 
+class Column {
+    table: string;
+    name: string;
+    type: string;
+    length?: number;
+    index?: number;
+    constructor(table: string, name: string, type: string, index?: number, length?: number) {
+        this.table = table;
+        this.name = name;
+        this.type = type;
+        this.index = index;
+        this.length = length;
+    }
+}
 
-class Store {
+class QueryStream extends Readable {
+    respRef?: Response;
+    constructor(resp: Response) {
+        super();
+        this.respRef = resp;
+    }
+
+    end() {
+        this.emit('end');
+    }
+
+}
+
+type QueryResult = {
+    id?: number;
+    type?: string;
+    queryId?: number;
+    rowCnt?: number;
+    affectedRowCnt?: number;
+    columnCnt?: number;
+    queryTime?: number; // microseconds
+    sqlOptimizerTime?: number;  //microseconds
+    malOptimizerTime?: number; //microseconds
+    columns?: Column[];
+    data?: any[];
+}
+
+
+function parseHeaderLine(hdrLine: string): Object {
+    if (hdrLine.startsWith(MSG_HEADER)) {
+        const [head, tail] = hdrLine.substring(1).trim().split('#');
+        let res = {};
+        const vals = head.trim().split(',\t');
+        switch(tail.trim()) {
+            case 'table_name':
+                res = {tableNames: vals};
+                break;
+            case 'name':
+                res = {columnNames: vals};
+                break;
+            case 'type':
+                res = {columnTypes: vals};
+                break;
+            default:
+                res = {};
+        }
+        return res;
+    }
+    throw TypeError('Invalid header format!');
+}
+
+
+function parseTupleLine(line: string, types: string[]): any[] {
+    if (line.startsWith(MSG_TUPLE) && line.endsWith(']')) {
+        var resultline = [];
+        var cCol = 0;
+        var curtok = '';
+        var state = 'INCRAP';
+        let endQuotes = 0;
+        /* mostly adapted from clients/R/MonetDB.R/src/mapisplit.c */
+        for (var curPos = 2; curPos < line.length - 1; curPos++) {
+            var chr = line.charAt(curPos);
+            switch (state) {
+                case 'INCRAP':
+                    if (chr != '\t' && chr != ',' && chr != ' ') {
+                        if (chr == '"') {
+                            state = 'INQUOTES';
+                        } else {
+                            state = 'INTOKEN';
+                            curtok += chr;
+                        }
+                    }
+                    break;
+                case 'INTOKEN':
+                    if (chr == ',' || curPos == line.length - 2) {
+                        if (curtok == 'NULL' && endQuotes === 0) {
+                            resultline.push(null);
+
+                        } else {
+                            switch(types[cCol]) {
+                                case 'boolean':
+                                    resultline.push(curtok == 'true');
+                                    break;
+                                case 'tinyint':
+                                case 'smallint':
+                                case 'int':
+                                case 'wrd':
+                                case 'bigint':
+                                    resultline.push(parseInt(curtok));
+                                    break;
+                                case 'real':
+                                case 'double':
+                                case 'decimal':
+                                    resultline.push(parseFloat(curtok));
+                                    break;
+                                case 'json':
+                                    try {
+                                        resultline.push(JSON.parse(curtok));
+                                    } catch(e) {
+                                        resultline.push(curtok);
+                                    }
+                                    break;
+                                default:
+                                    // we need to unescape double quotes
+                                    //valPtr = valPtr.replace(/[^\\]\\"/g, '"');
+                                    resultline.push(curtok);
+                                    break;
+                            }
+                        }
+                        cCol++;
+                        state = 'INCRAP';
+                        curtok = '';
+                        endQuotes = 0;
+                    } else {
+                        curtok += chr;
+                    }
+                    break;
+                case 'ESCAPED':
+                    state = 'INQUOTES';
+                    switch(chr) {
+                        case 't': curtok += '\t'; break;
+                        case 'n': curtok += '\n'; break;
+                        case 'r': curtok += '\r'; break;
+                        default: curtok += chr;
+                    }
+                    break;
+                case 'INQUOTES':
+                    if (chr == '"') {
+                        state = 'INTOKEN';
+                        endQuotes++;
+                        break;
+                    }
+                    if (chr == '\\') {
+                        state = 'ESCAPED';
+                        break;
+                    }
+                    curtok += chr;
+                    break;
+            }
+        }
+        return resultline;
+    }
+    throw TypeError('Invalid tuple format!');
+}
+
+
+interface ResponseCallbacks {
+    resolve: (v: QueryResult | QueryStream) => void;
+    reject: (err: Error) => void;
+}
+
+interface ResponseHeaders {
+    tableNames?: string[];
+    columnNames?: string[];
+    columnTypes?: string[];
+}
+
+class Response {
     buff: Buffer;
     offset: number;
+    parseOffset: number;
+    stream: boolean;
+    resolved: boolean;
     segments: Segment[];
-    constructor(size: number = MAPI_BLOCK_SIZE) {
-        this.buff = Buffer.allocUnsafe(size).fill(0);
+    result: QueryResult;
+    callbacks?: ResponseCallbacks;
+    queryStream?: QueryStream;
+    headers?: ResponseHeaders;
+
+    constructor(stream: boolean=false, callbacks?: ResponseCallbacks) {
+        this.buff = Buffer.allocUnsafe(MAPI_BLOCK_SIZE).fill(0);
+        this.stream = stream;
         this.offset = 0;
+        this.parseOffset = 0;
         this.segments = [];
+        this.callbacks = callbacks;
+        this.resolved = false;
+        this.result = {};
     }
 
     append(data: Buffer): number {
@@ -131,7 +315,8 @@ class Store {
         const l = this.segments.length;
         let segment = (l > 0 && this.segments[l - 1]) || undefined;
         let bytesCopied = 0;
-        if (!this.isFull()) {
+        let bytesProcessed = 0;
+        if (!this.complete()) {
             // check if out of space
             if ((this.buff.length - this.offset) < data.length)
                 this.expand(MAPI_BLOCK_SIZE);
@@ -146,7 +331,7 @@ class Store {
                 segment = new Segment(bytes, last, this.offset, bytesCopied);
                 this.segments.push(segment);
                 this.offset += bytesCopied;
-                return MAPI_HEADER_SIZE + bytesCopied;
+                bytesProcessed = MAPI_HEADER_SIZE + bytesCopied;
             } else {
                 const byteCntToRead = segment.bytes - segment.bytesOffset;
                 srcEndIndx = srcStartIndx + byteCntToRead;
@@ -154,29 +339,35 @@ class Store {
                 this.offset += bytesCopied;
                 segment.bytesOffset += bytesCopied;
                 console.log(`segment is full ${segment.bytesOffset === segment.bytes}`);
-                return bytesCopied;
+                bytesProcessed = bytesCopied;
+            }
+            if (this.isQueryResponse()) {
+                // parse 
+                const tuples = [];
+                this.parseOffset += this.parse(this.toString(this.parseOffset + 1), tuples);
+                if (tuples.length > 0) {
+                    if (this.stream) {
+                        if (this.queryStream === undefined) {
+                            this.queryStream = new QueryStream(this);
+                            if (this.callbacks && this.callbacks.resolve)
+                                this.callbacks.resolve(this.queryStream);
+                        }
+                        // emit tuples
+                        // TODO emit headers?
+                        this.queryStream.emit('data', tuples);
+                    } else {
+                        this.result.data = this.result.data || [];
+                        for (let t of tuples) {
+                            this.result.data.push(t);
+                        }
+                    }
+                }
             }
         }
+        return bytesProcessed;
     }
 
-    expand(byteCount: number): number {
-        console.log('expanding ...');
-        const buff = Buffer.allocUnsafe(this.buff.length + byteCount).fill(0);
-        const bytesCopied = this.buff.copy(buff);
-        this.buff = buff;
-        // should be byteCount
-        return this.buff.length - bytesCopied;
-    }
-
-    drain(): string {
-        const res = this.toString();
-        this.segments = [];
-        this.offset = 0;
-        this.buff.fill(0);
-        return res;
-    }
-
-    isFull(): boolean {
+    complete(): boolean {
         const l = this.segments.length;
         if (l > 0) {
             const segment = this.segments[l-1];
@@ -185,8 +376,144 @@ class Store {
         return false;
     }
 
-    toString() {
-        return this.buff.toString();
+    private expand(byteCount: number): number {
+        console.log('expanding ...');
+        const buff = Buffer.allocUnsafe(this.buff.length + byteCount).fill(0);
+        const bytesCopied = this.buff.copy(buff);
+        this.buff = buff;
+        // should be byteCount
+        return this.buff.length - bytesCopied;
+    }
+
+    private firstCharacter(): string {
+        return this.buff.toString('utf8', 0, 1);
+    }
+
+    errorMessage(): string {
+        if (this.firstCharacter() === MSG_ERROR) {
+            return this.buff.toString('utf8', 1);
+        }
+        return '';
+    }
+
+    isPrompt(): boolean {
+        return this.complete() && this.firstCharacter() === '\x00';
+    }
+
+    isRedirect(): boolean {
+        return this.firstCharacter() === MSG_REDIRECT;
+    }
+
+    isQueryResponse(): boolean {
+        if (this.type) {
+            return this.type.startsWith(MSG_Q);
+        }
+        return this.firstCharacter() === MSG_Q;
+    }
+
+    toString(start?: number) {
+        const res = this.buff.toString('utf8', 0, this.offset);
+        if (start)
+            return res.substring(start);
+        return res;
+    }
+
+    resolve(): void {
+        if (this.resolved === false && this.complete()) {
+            if (this.callbacks) {
+                const err = this.errorMessage();
+                if (err) {
+                    this.callbacks.reject(new Error(err))
+                } else {
+                    if (this.queryStream) {
+                        this.queryStream.end();
+                    } else {
+                        this.callbacks.resolve(this.result);
+                    }
+                    this.resolved = true;
+                }
+            }
+        }
+    }
+
+    parse(data: string, res: any[]): number {
+        let offset = 0;
+        const lines = data.split('\n').length;
+        if (this.isQueryResponse()) {
+            let eol = data.indexOf('\n');
+            // process 1st line + headers
+            if (this.result.type === undefined && data.startsWith(MSG_Q) && lines > 5) {
+                const line = data.substring(0, eol);
+                this.result.type = line.substring(0, 2);
+                const rest = line.substring(3).trim().split(' ');
+                if (this.result.type === MSG_QTABLE) {
+                    const [id, rowCnt, columnCnt,
+                        rows, queryId, queryTime,
+                        malOptimizerTime, sqlOptimizerTime] = rest;
+                    this.result.id = parseInt(id);
+                    this.result.rowCnt = parseInt(rowCnt);
+                    this.result.columnCnt = parseInt(columnCnt);
+                    this.result.queryId = parseInt(queryId);
+                    this.result.queryTime = parseInt(queryTime);
+                    this.result.malOptimizerTime = parseInt(malOptimizerTime);
+                    this.result.sqlOptimizerTime = parseInt(sqlOptimizerTime);
+
+                } else if(this.result.type === MSG_QUPDATE) {
+                    const [affectedRowCnt, autoIncrementId, queryId,
+                        queryTime, malOptimizerTime, sqlOptimizerTime] = rest;
+                    this.result.affectedRowCnt = parseInt(affectedRowCnt);
+                    this.result.queryId = parseInt(queryId);
+                    this.result.queryTime = parseInt(queryTime);
+                    this.result.malOptimizerTime = parseInt(malOptimizerTime);
+                    this.result.sqlOptimizerTime = parseInt(sqlOptimizerTime);
+                }
+
+                if (this.headers === undefined && (data.charAt(eol + 1) === MSG_HEADER)) {
+                    let headers: ResponseHeaders = {};
+                    while(data.charAt(eol + 1) === MSG_HEADER) {
+                        const hs = eol + 1;
+                        eol = data.indexOf('\n', hs);
+                        headers = {...headers, ...parseHeaderLine(data.substring(hs, eol))};
+                    }
+                    this.headers = headers;
+                    const colums: Column[] = [];
+                    for (let i=0; i<this.result.columnCnt; i++) {
+                        const table = headers.tableNames && headers.tableNames[i];
+                        const name = headers.columnNames && headers.columnNames[i];
+                        const type = headers.columnTypes && headers.columnTypes[i];
+                        colums.push({
+                            table,
+                            name,
+                            type,
+                            index: i
+                        });
+                    }
+                    this.result.columns = colums;
+                }
+            }
+            let ts: number = undefined;
+            if (data.startsWith(MSG_TUPLE)) {
+                ts = 0;
+            } else if (data.charAt(eol + 1) === MSG_TUPLE) {
+                ts = eol + 1;
+                eol = data.indexOf('\n', ts);
+            }
+            if (ts !== undefined) {
+                // we have a data row
+                do {
+                    const tuple = parseTupleLine(data.substring(ts, eol), this.headers.columnTypes);
+                    res.push(tuple);
+                    if (data.charAt(eol + 1) === MSG_TUPLE) {
+                        ts = eol + 1;
+                        eol = data.indexOf('\n', ts);
+                    } else {
+                        ts = undefined;
+                    }
+                } while (ts && (eol > -1));
+            }
+            offset += eol;
+        }
+        return offset;
     }
 
 }
@@ -221,7 +548,7 @@ class MapiConnection extends EventEmitter {
     language: MAPI_LANGUAGE;
     handShakeOptions?: HandShakeOption[];
     redirects: number;
-    store: Store;
+    queue: Response[];
 
     constructor(config: MapiConfig) {
         super();
@@ -237,7 +564,7 @@ class MapiConnection extends EventEmitter {
             this.emit('end');
         });
         this.redirects = 0;
-        this.store = new Store(MAPI_BLOCK_SIZE);
+        this.queue = [];
         this.database = config.database;
         this.language = config.language || MAPI_LANGUAGE.SQL;
         this.unixSocket = config.unixSocket;
@@ -298,7 +625,7 @@ class MapiConnection extends EventEmitter {
             } catch {}
         }
         if (pwhash) {
-            let counterResponse = `${endian}:${this.username}:${pwhash}:${this.language}:${this.database}:`;
+            let counterResponse = `LIT:${this.username}:${pwhash}:${this.language}:${this.database}:`;
             if (opt_level && opt_level.startsWith('sql=')) {
                 let level = 0;
                 counterResponse += 'FILETRANS:';
@@ -353,12 +680,41 @@ class MapiConnection extends EventEmitter {
         console.error(err);
     }
 
+    request(sql: string, stream:boolean=false): Promise<QueryResult|QueryStream> {
+        return new Promise((resolve, reject) => {
+            this.send(sql, (err?: Error) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    const resp = new Response(stream, resolve);
+                    this.queue.push(resp)
+                }
+            });
+        });
+    }
+
     private recv(data: Buffer): void {
-        const offset = this.store.append(data);
-        const bytesLeftOver = data.length - offset;
-        if (this.store.isFull()) {
-            this.handleResponse(this.store.drain());
+        let bytesLeftOver: number;
+        let resp: Response;
+        // process queue left to right, find 1st uncomplete response
+        // remove responses that are completed
+        while(this.queue.length) {
+            const next = this.queue[0];
+            if (next.resolved) {
+                this.queue.shift();
+            } else {
+                resp = next;
+                break;
+            }
         }
+        if (resp === undefined) {
+            resp = new Response();
+            this.queue.push(resp);
+        }
+        const offset = resp.append(data);
+        if (resp.complete())
+            this.handleResponse(resp);
+        bytesLeftOver = data.length - offset;
         if (bytesLeftOver) {
             const msg = `some ${bytesLeftOver} bytes left over!`;
             console.warn(msg);
@@ -366,29 +722,32 @@ class MapiConnection extends EventEmitter {
         }
     }
 
-    private handleResponse(resp: string): void {
-        console.log(resp);
-        if (resp.startsWith(MSG_ERROR)) {
-            const err = new Error(resp.substring(1));
-            this.emit('error', err);
+    private handleResponse(resp: Response): void {
+        console.log(resp.toString());
+        const err = resp.errorMessage();
+        if (err) {
+            this.emit('error', new Error(err));
+            return;
         }
 
         if (this.state == MAPI_STATE.CONNECTED) {
-            const isRedirect = resp.startsWith(MSG_REDIRECT);
-            if (isRedirect) {
+            if (resp.isRedirect()) {
                 this.redirects += 1;
                 console.log('received redirect');
                 if (this.redirects > MAX_REDIRECTS)
                    this.emit('error', new Error(`Exceeded max number of redirects ${MAX_REDIRECTS}`));
                 return;
             }
-            if (resp.startsWith(MSG_OK) || resp.startsWith('\x00')) {
+            if (resp.isPrompt()) {
                 console.log('OK');
                 this.state = MAPI_STATE.READY;
                 this.emit('ready', this.state);
                 return;
             }
-            return this.login(resp);
+            return this.login(resp.toString());
+        }
+        if (this.state = MAPI_STATE.READY) {
+            resp.resolve();
         }
     }
 }

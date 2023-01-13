@@ -1,4 +1,4 @@
-import { once, EventEmitter, Abortable } from 'events';
+import { EventEmitter} from 'events';
 import { MapiConfig, MapiConnection,
     parseMapiUri, createMapiConfig, HandShakeOption } from './mapi';
 
@@ -49,9 +49,9 @@ class Connection extends EventEmitter {
         return this.mapi.disconnect();
     }
 
-    execute(sql: string) {
+    execute(sql: string, stream: boolean = false): Promise<any> {
         const query = `s${sql};\n`;
-        return this.mapi.send(query);
+        return this.mapi.request(query, stream);
     }
 
     private command(str: string): void {
