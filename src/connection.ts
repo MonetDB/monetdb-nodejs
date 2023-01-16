@@ -17,16 +17,18 @@ class Connection extends EventEmitter {
     mapi: MapiConnection;
 
 
-    constructor(params?: MapiConfig | MAPI_URI) {
+    constructor(params: MapiConfig | MAPI_URI) {
         super();
         const config = (typeof params === 'string') ? parseMapiUri(params) : createMapiConfig(params);
         this.mapi = new MapiConnection(config);
+        this.autoCommit = config.autoCommit;
+        this.replySize = config.replySize;
     }
 
     connect(callback?: ConnectCallback): Promise<boolean> {
         const options = [
-            new HandShakeOption(1, 'auto_commit', false, this.setAutocommit),
-            new HandShakeOption(2, 'reply_size', 100, this.setReplySize),
+            new HandShakeOption(1, 'auto_commit', this.autoCommit, this.setAutocommit),
+            new HandShakeOption(2, 'reply_size', this.replySize, this.setReplySize),
             new HandShakeOption(3, 'size_header', true, this.setSizeHeader),
             new HandShakeOption(5, 'time_zone', (new Date().getTimezoneOffset()*60), this.setTimezone)
         ];
@@ -54,31 +56,41 @@ class Connection extends EventEmitter {
         return this.mapi.request(query, stream);
     }
 
-    private command(str: string): void {
-        return this.mapi.send(str);
+    private command(str: string): Promise<any> {
+        return this.mapi.request(str);
     }
 
-    setAutocommit(v: boolean): void {
+    setAutocommit(v: boolean): Promise<boolean> {
         const cmd = `Xauto_commit ${Number(v)}`;
-        this.command(cmd);
-        this.autoCommit = v;
+        return this.command(cmd).then(() => {
+            this.autoCommit = v;
+            return this.autoCommit;
+        });
     }
 
-    setReplySize(v: number) {
+    setReplySize(v: number): Promise<number> {
         const cmd = `Xreply_size ${Number(v)}`;
-        this.command(cmd);
-        this.replySize = Number(v);
+        return this.command(cmd).then(() => {
+            this.replySize = Number(v);
+            return this.replySize;
+        });
     }
 
-    setSizeHeader(v: boolean) {
+    setSizeHeader(v: boolean): Promise<boolean> {
         const cmd = `Xsizeheader ${Number(v)}`;
-        this.command(cmd);
-        this.sizeHeader = v;
+        return this.command(cmd).then(() => {
+            this.sizeHeader = v;
+            return this.sizeHeader;
+        });
     }
 
-    setTimezone(sec: number) {
+    setTimezone(sec: number): Promise<any> {
         const qry = `SET TIME ZONE INTERVAL '${sec}' SECOND`;
         return this.execute(qry);
+    }
+
+    rollback(): Promise<any> {
+        return this.execute('ROLLBACK')
     }
 
 }

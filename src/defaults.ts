@@ -5,6 +5,8 @@ const defaults = {
     username: process.env.MAPI_USER || 'monetdb',
     password: process.env.MAPI_PASSWORD || 'monetdb',
     database: process.env.MAPI_DATABASE,
+    autoCommit: false,
+    replySize: 100,
 };
 
 export default defaults;

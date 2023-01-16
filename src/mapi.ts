@@ -42,8 +42,8 @@ enum MAPI_LANGUAGE {
 
 interface MapiConfig {
     database: string;
-    username: string;
-    password: string;
+    username?: string;
+    password?: string;
     language?: MAPI_LANGUAGE;
     host?: string;
     port?: number;
@@ -84,7 +84,8 @@ function parseMapiUri(uri: string): MapiConfig {
     throw new Error(`Invalid MAPI URI ${uri}!`);
 }
 
-function createMapiConfig(params?: MapiConfig): MapiConfig {
+// validates and sets defaults on missing properties
+function createMapiConfig(params: MapiConfig): MapiConfig {
     const database = (params && params.database)? params.database : defaults.database;
     if (typeof database != 'string') {
         throw new Error("database name must be string");
@@ -98,20 +99,22 @@ function createMapiConfig(params?: MapiConfig): MapiConfig {
     if (!unixSocket && !host)
         host = defaults.host;
     if (typeof host != 'string') {
-        throw new Error(`${host} is not valid hostname`);
+        throw new TypeError(`${host} is not valid hostname`);
     }
     const port = (params && params.port)? Number(params.port) : Number(defaults.port);
     if (isNaN(port)) {
-        throw new Error(`${port} is not valid port`);
+        throw new TypeError(`${port} is not valid port`);
     }
 
     const timeout = (params && params.timeout)? Number(params.timeout) : undefined;
     if (timeout && isNaN(timeout)) {
-        throw new Error('timeout must be number');
+        throw new TypeError('timeout must be number');
     }
     const language = (params && params.language)? params.language : MAPI_LANGUAGE.SQL;
+    const autoCommit = params.autoCommit || defaults.autoCommit;
+    const replySize = params.replySize || defaults.replySize;
 
-    return {database, username, password, language, host, port, timeout, unixSocket};
+    return {database, username, password, language, host, port, timeout, unixSocket, autoCommit, replySize};
 }
 
 class Column {
@@ -291,9 +294,9 @@ class Response {
     offset: number;
     parseOffset: number;
     stream: boolean;
-    resolved: boolean;
+    settled: boolean;
     segments: Segment[];
-    result: QueryResult;
+    result?: QueryResult;
     callbacks?: ResponseCallbacks;
     queryStream?: QueryStream;
     headers?: ResponseHeaders;
@@ -305,8 +308,7 @@ class Response {
         this.parseOffset = 0;
         this.segments = [];
         this.callbacks = callbacks;
-        this.resolved = false;
-        this.result = {};
+        this.settled = false;
     }
 
     append(data: Buffer): number {
@@ -344,7 +346,7 @@ class Response {
             if (this.isQueryResponse()) {
                 // parse 
                 const tuples = [];
-                this.parseOffset += this.parse(this.toString(this.parseOffset + 1), tuples);
+                this.parseOffset += this.parse(this.toString(this.parseOffset), tuples);
                 if (tuples.length > 0) {
                     if (this.stream) {
                         if (this.queryStream === undefined) {
@@ -405,7 +407,7 @@ class Response {
     }
 
     isQueryResponse(): boolean {
-        if (this.result.type) {
+        if (this.result && this.result.type) {
             return this.result.type.startsWith(MSG_Q);
         }
         return this.firstCharacter() === MSG_Q;
@@ -418,21 +420,21 @@ class Response {
         return res;
     }
 
-    resolve(): void {
-        if (this.resolved === false && this.complete()) {
+    settle(): void {
+        if (this.settled === false && this.complete()) {
             if (this.callbacks) {
                 const err = this.errorMessage();
                 if (err) {
-                    this.callbacks.reject(new Error(err))
+                    this.callbacks.reject(new Error(err));
                 } else {
                     if (this.queryStream) {
                         this.queryStream.end();
                     } else {
                         this.callbacks.resolve(this.result);
                     }
-                    this.resolved = true;
                 }
             }
+            this.settled = true;
         }
     }
 
@@ -441,6 +443,7 @@ class Response {
         const lines = data.split('\n').length;
         if (this.isQueryResponse()) {
             let eol = data.indexOf('\n');
+            this.result = this.result || {};
             // process 1st line + headers
             if (this.result.type === undefined && data.startsWith(MSG_Q) && lines > 5) {
                 const line = data.substring(0, eol);
@@ -491,7 +494,7 @@ class Response {
                     this.result.columns = colums;
                 }
             }
-            let ts: number = undefined;
+            let ts: number = undefined; // tuple index
             if (data.startsWith(MSG_TUPLE)) {
                 ts = 0;
             } else if (data.charAt(eol + 1) === MSG_TUPLE) {
@@ -511,7 +514,7 @@ class Response {
                     }
                 } while (ts && (eol > -1));
             }
-            offset += eol;
+            offset += eol + 1;
         }
         return offset;
     }
@@ -560,7 +563,7 @@ class MapiConnection extends EventEmitter {
         this.socket.addListener('error', this.handleSocketError.bind(this));
         this.socket.addListener('timeout', this.handleTimeout.bind(this));
         this.socket.addListener('close', () => {
-            console.log('socket close event');
+            //console.log('socket close event');
             this.emit('end');
         });
         this.redirects = 0;
@@ -646,7 +649,13 @@ class MapiConnection extends EventEmitter {
                 if (options)
                     counterResponse += options.join(',') + ':';
             }
-            this.send(counterResponse);
+            this.send(counterResponse, (err) => {
+                if (err) {
+                    this.emit('error', err);
+                } else {
+                    this.queue.push(new Response());
+                }
+            });
         } else {
             this.emit('error', new TypeError(`None of the hashes ${hashes} are supported`));
         }
@@ -694,20 +703,23 @@ class MapiConnection extends EventEmitter {
     }
 
     private recv(data: Buffer): void {
+        console.log(data.toString('utf8', 2));
         let bytesLeftOver: number;
         let resp: Response;
         // process queue left to right, find 1st uncomplete response
         // remove responses that are completed
         while(this.queue.length) {
             const next = this.queue[0];
-            if (next.resolved) {
+            if (next.complete()) {
                 this.queue.shift();
             } else {
                 resp = next;
                 break;
             }
         }
-        if (resp === undefined) {
+        if (resp === undefined && (this.queue.length === 0)) {
+            // must be a challenge message
+            // possibly after redirect
             resp = new Response();
             this.queue.push(resp);
         }
@@ -723,17 +735,17 @@ class MapiConnection extends EventEmitter {
     }
 
     private handleResponse(resp: Response): void {
-        console.log(resp.toString());
-        const err = resp.errorMessage();
-        if (err) {
-            this.emit('error', new Error(err));
-            return;
-        }
+        resp.settle();
 
         if (this.state == MAPI_STATE.CONNECTED) {
+            const err = resp.errorMessage();
+            if (err) {
+                this.emit('error', new Error(err));
+                return;
+            }
             if (resp.isRedirect()) {
                 this.redirects += 1;
-                console.log('received redirect');
+                // console.log('received redirect');
                 if (this.redirects > MAX_REDIRECTS)
                    this.emit('error', new Error(`Exceeded max number of redirects ${MAX_REDIRECTS}`));
                 return;
@@ -745,9 +757,6 @@ class MapiConnection extends EventEmitter {
                 return;
             }
             return this.login(resp.toString());
-        }
-        if (this.state = MAPI_STATE.READY) {
-            resp.resolve();
         }
     }
 }
