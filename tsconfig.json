@@ -14,7 +14,8 @@
     "baseUrl": ".",
     "declaration": true,
     "types": [
-      "node"
+      "node",
+      "mocha"
     ]
   },
   "include": [
