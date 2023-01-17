@@ -1,5 +1,4 @@
 import { Socket, SocketConnectOpts } from 'node:net';
-import { Readable, Writable } from 'node:stream';
 import { once, EventEmitter, Abortable } from 'events';
 import { Buffer } from 'buffer';
 import { createHash } from 'node:crypto';
@@ -132,18 +131,6 @@ class Column {
     }
 }
 
-class QueryStream extends Readable {
-    respRef?: Response;
-    constructor(resp: Response) {
-        super();
-        this.respRef = resp;
-    }
-
-    end() {
-        this.emit('end');
-    }
-
-}
 
 type QueryResult = {
     id?: number;
@@ -157,6 +144,16 @@ type QueryResult = {
     malOptimizerTime?: number; //microseconds
     columns?: Column[];
     data?: any[];
+}
+
+class QueryStream extends EventEmitter {
+    constructor() {
+        super();
+    }
+
+    end(res?: QueryResult) {
+        this.emit('end', res);
+    }
 }
 
 
@@ -289,6 +286,7 @@ interface ResponseHeaders {
     columnTypes?: string[];
 }
 
+
 class Response {
     buff: Buffer;
     offset: number;
@@ -307,8 +305,13 @@ class Response {
         this.offset = 0;
         this.parseOffset = 0;
         this.segments = [];
-        this.callbacks = callbacks;
         this.settled = false;
+        this.callbacks = callbacks;
+        if (stream) {
+            this.queryStream = new QueryStream();
+            if (callbacks && callbacks.resolve)
+                callbacks.resolve(this.queryStream);
+        }
     }
 
     append(data: Buffer): number {
@@ -320,8 +323,10 @@ class Response {
         let bytesProcessed = 0;
         if (!this.complete()) {
             // check if out of space
-            if ((this.buff.length - this.offset) < data.length)
-                this.expand(MAPI_BLOCK_SIZE);
+            if ((this.buff.length - this.offset) < data.length) {
+                const bytes = this.expand(MAPI_BLOCK_SIZE);
+                // console.log(`expanding by ${bytes} bytes!`);
+            }
 
             if (segment === undefined || (segment && segment.isFull())) {
                 const hdr = data.readUInt16LE(0);
@@ -340,22 +345,20 @@ class Response {
                 bytesCopied = data.copy(this.buff, this.offset, srcStartIndx, srcEndIndx);
                 this.offset += bytesCopied;
                 segment.bytesOffset += bytesCopied;
-                console.log(`segment is full ${segment.bytesOffset === segment.bytes}`);
+                // console.log(`segment is full ${segment.bytesOffset === segment.bytes}`);
                 bytesProcessed = bytesCopied;
             }
             if (this.isQueryResponse()) {
-                // parse 
                 const tuples = [];
+                const firstPackage = this.parseOffset === 0;
                 this.parseOffset += this.parse(this.toString(this.parseOffset), tuples);
                 if (tuples.length > 0) {
-                    if (this.stream) {
-                        if (this.queryStream === undefined) {
-                            this.queryStream = new QueryStream(this);
-                            if (this.callbacks && this.callbacks.resolve)
-                                this.callbacks.resolve(this.queryStream);
+                    if (this.queryStream) {
+                        // emit header once
+                        if (firstPackage && this.result && this.result.columns) {
+                            this.queryStream.emit('header', this.result.columns);
                         }
                         // emit tuples
-                        // TODO emit headers?
                         this.queryStream.emit('data', tuples);
                     } else {
                         this.result.data = this.result.data || [];
@@ -379,7 +382,6 @@ class Response {
     }
 
     private expand(byteCount: number): number {
-        console.log('expanding ...');
         const buff = Buffer.allocUnsafe(this.buff.length + byteCount).fill(0);
         const bytesCopied = this.buff.copy(buff);
         this.buff = buff;
@@ -422,13 +424,15 @@ class Response {
 
     settle(): void {
         if (this.settled === false && this.complete()) {
-            if (this.callbacks) {
-                const err = this.errorMessage();
-                if (err) {
-                    this.callbacks.reject(new Error(err));
-                } else {
-                    if (this.queryStream) {
-                        this.queryStream.end();
+            const err = this.errorMessage();
+            if (this.queryStream) {
+                if (err)
+                    this.queryStream.emit('error', new Error(err));
+                this.queryStream.end();
+            } else {
+                if (this.callbacks) {
+                    if (err) {
+                        this.callbacks.reject(new Error(err));
                     } else {
                         this.callbacks.resolve(this.result);
                     }
@@ -494,6 +498,7 @@ class Response {
                     this.result.columns = colums;
                 }
             }
+            offset = eol + 1;
             let ts: number = undefined; // tuple index
             if (data.startsWith(MSG_TUPLE)) {
                 ts = 0;
@@ -501,9 +506,10 @@ class Response {
                 ts = eol + 1;
                 eol = data.indexOf('\n', ts);
             }
-            if (ts !== undefined) {
+            if (ts !== undefined && eol > 0) {
                 // we have a data row
                 do {
+                    offset = eol + 1;
                     const tuple = parseTupleLine(data.substring(ts, eol), this.headers.columnTypes);
                     res.push(tuple);
                     if (data.charAt(eol + 1) === MSG_TUPLE) {
@@ -514,7 +520,6 @@ class Response {
                     }
                 } while (ts && (eol > -1));
             }
-            offset += eol + 1;
         }
         return offset;
     }
@@ -703,7 +708,7 @@ class MapiConnection extends EventEmitter {
     }
 
     private recv(data: Buffer): void {
-        console.log(data.toString('utf8', 2));
+        // console.log(data.toString('utf8', 2));
         let bytesLeftOver: number;
         let resp: Response;
         // process queue left to right, find 1st uncomplete response
@@ -745,13 +750,12 @@ class MapiConnection extends EventEmitter {
             }
             if (resp.isRedirect()) {
                 this.redirects += 1;
-                // console.log('received redirect');
                 if (this.redirects > MAX_REDIRECTS)
                    this.emit('error', new Error(`Exceeded max number of redirects ${MAX_REDIRECTS}`));
                 return;
             }
             if (resp.isPrompt()) {
-                console.log('OK');
+                console.log('login OK');
                 this.state = MAPI_STATE.READY;
                 this.emit('ready', this.state);
                 return;

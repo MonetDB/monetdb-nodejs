@@ -53,6 +53,8 @@ class Connection extends EventEmitter {
 
     execute(sql: string, stream: boolean = false): Promise<any> {
         const query = `s${sql};\n`;
+        if (stream && this.replySize !== -1)
+            this.setReplySize(-1);
         return this.mapi.request(query, stream);
     }
 

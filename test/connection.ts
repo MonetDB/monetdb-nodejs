@@ -46,4 +46,34 @@ describe('Connection', function() {
         res = await conn.execute('select * from foo');
         assert.deepStrictEqual(res.data, [['foo'], ['bar']]);
     });
+
+    it('should stream response', async function() {
+        this.timeout(3000);
+
+        const ready = await conn.connect();
+        assert(ready, new Error('failed to connect'));
+        await conn.setReplySize(-1);
+        const stream = await conn.execute('select * from generate_series(1, 10000)', true);
+        const colInfo = [];
+        const data = [];
+        return new Promise((resolve, reject) => {
+            stream.on('header', (cols: any[]) => {
+                for (let col of cols)
+                    colInfo.push(col);
+            });
+            stream.on('data', (tuples: any[]) => {
+                for (let t of tuples) {
+                    data.push(t);
+                }
+            });
+            stream.on('error', (err: Error) => {
+                reject(err);
+            })
+            stream.on('end', () => {
+                assert.strictEqual(colInfo.length, 1);
+                assert.strictEqual(data.length, 9999);
+                resolve();
+            });
+        })
+    });
 });
