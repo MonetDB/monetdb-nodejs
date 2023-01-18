@@ -48,8 +48,6 @@ describe('Connection', function() {
     });
 
     it('should stream response', async function() {
-        this.timeout(3000);
-
         const ready = await conn.connect();
         assert(ready, new Error('failed to connect'));
         await conn.setReplySize(-1);

@@ -1,6 +1,7 @@
 import { EventEmitter} from 'events';
 import { MapiConfig, MapiConnection,
     parseMapiUri, createMapiConfig, HandShakeOption } from './mapi';
+import PrepareStatement from './PrepareStatement';
 
 // MAPI URI:
 //  tcp socket:  mapi:monetdb://[<username>[:<password>]@]<host>[:<port>]/<database>
@@ -51,6 +52,14 @@ class Connection extends EventEmitter {
         return this.mapi.disconnect();
     }
 
+    commit(): Promise<any> {
+        return this.execute('COMMIT');
+    }
+
+    private command(str: string): Promise<any> {
+        return this.mapi.request(str);
+    }
+
     execute(sql: string, stream: boolean = false): Promise<any> {
         const query = `s${sql};\n`;
         if (stream && this.replySize !== -1)
@@ -58,8 +67,10 @@ class Connection extends EventEmitter {
         return this.mapi.request(query, stream);
     }
 
-    private command(str: string): Promise<any> {
-        return this.mapi.request(str);
+    async prepare(sql: string): Promise<PrepareStatement> {
+        const prepSQL = `PREPARE ${sql}`;
+        const res = await this.execute(prepSQL);
+        return new PrepareStatement(res, this.mapi);
     }
 
     setAutocommit(v: boolean): Promise<boolean> {

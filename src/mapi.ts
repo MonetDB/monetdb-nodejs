@@ -143,6 +143,7 @@ type QueryResult = {
     sqlOptimizerTime?: number;  //microseconds
     malOptimizerTime?: number; //microseconds
     columns?: Column[];
+    headers?: ResponseHeaders;
     data?: any[];
 }
 
@@ -448,7 +449,7 @@ class Response {
         if (this.isQueryResponse()) {
             let eol = data.indexOf('\n');
             this.result = this.result || {};
-            // process 1st line + headers
+            // process 1st line
             if (this.result.type === undefined && data.startsWith(MSG_Q) && lines > 5) {
                 const line = data.substring(0, eol);
                 this.result.type = line.substring(0, 2);
@@ -464,7 +465,6 @@ class Response {
                     this.result.queryTime = parseInt(queryTime);
                     this.result.malOptimizerTime = parseInt(malOptimizerTime);
                     this.result.sqlOptimizerTime = parseInt(sqlOptimizerTime);
-
                 } else if(this.result.type === MSG_QUPDATE) {
                     const [affectedRowCnt, autoIncrementId, queryId,
                         queryTime, malOptimizerTime, sqlOptimizerTime] = rest;
@@ -473,6 +473,17 @@ class Response {
                     this.result.queryTime = parseInt(queryTime);
                     this.result.malOptimizerTime = parseInt(malOptimizerTime);
                     this.result.sqlOptimizerTime = parseInt(sqlOptimizerTime);
+                } else if(this.result.type === MSG_QSCHEMA) {
+                    const [queryTime, malOptimizerTime] = rest;
+                    this.result.queryTime = parseInt(queryTime);
+                    this.result.malOptimizerTime = parseInt(malOptimizerTime);
+                } else if(this.result.type === MSG_QTRANS) {
+                    // skip
+                } else if(this.result.type === MSG_QPREPARE) {
+                    const [id, rowCnt, columnCnt, rows] = rest;
+                    this.result.id = parseInt(id);
+                    this.result.rowCnt = parseInt(rowCnt);
+                    this.result.columnCnt = parseInt(columnCnt);
                 }
 
                 if (this.headers === undefined && (data.charAt(eol + 1) === MSG_HEADER)) {
@@ -668,7 +679,7 @@ class MapiConnection extends EventEmitter {
 
     send(msg: string, callback?: (err?: Error) => void): void {
         if (msg)
-            console.log(`Sending ${msg}`);
+            console.log(`>> ${msg}`);
         let buff = Buffer.from(msg);
         let last = 0;
         let offset = 0;
@@ -765,4 +776,4 @@ class MapiConnection extends EventEmitter {
     }
 }
 
-export { MapiConfig, MapiConnection, parseMapiUri, createMapiConfig, HandShakeOption };
+export { MapiConfig, MapiConnection, parseMapiUri, createMapiConfig, HandShakeOption, QueryResult };
