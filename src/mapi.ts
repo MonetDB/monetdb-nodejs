@@ -36,7 +36,7 @@ enum MAPI_STATE {
 enum MAPI_LANGUAGE {
     SQL='sql',
     MAPI='mapi',
-    CONTROL='control'
+    CONTROL='control' // ? Not implemented
 }
 
 interface MapiConfig {

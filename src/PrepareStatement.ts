@@ -1,5 +1,5 @@
 import { MapiConnection, QueryResult } from './mapi';
-import {convert} from './monetize';
+import { convert } from './monetize';
 
 class PrepareStatement {
     id: number;
@@ -25,6 +25,11 @@ class PrepareStatement {
         })
         const query = `sEXECUTE ${this.id}(${placeholders.join(', ')});\n`;
         return this.mapi.request(query);
+    }
+
+    release(): Promise<any> {
+        const stmt = `sDEALLOCATE ${this.id};\n`;
+        return this.mapi.request(stmt);
     }
 
 }

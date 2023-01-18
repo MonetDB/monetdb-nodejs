@@ -20,6 +20,7 @@ describe('Prepare Statement', function() {
         res = await prepStmt.execute(1, true, 'first', '2022-12-12', 1.11);
         res = await prepStmt.execute(2, false, 'second', '2022-12-12', 2.22);
         res = await prepStmt.execute(3, true, 'third', '2022-12-12', 3.33);
+        await prepStmt.release();
         res = await conn.execute('select count(*) from foo');
         assert.strictEqual(res.data[0][0], 3);
     });
