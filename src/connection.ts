@@ -103,7 +103,7 @@ class Connection extends EventEmitter {
     }
 
     rollback(): Promise<any> {
-        return this.execute('ROLLBACK')
+        return this.execute('ROLLBACK');
     }
 
 }

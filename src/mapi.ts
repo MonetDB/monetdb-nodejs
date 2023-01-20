@@ -684,7 +684,7 @@ class MapiConnection extends EventEmitter {
         let last = 0;
         let offset = 0;
         while (last === 0) {
-            const seg = buff.subarray(offset, MAPI_BLOCK_SIZE);
+            const seg = buff.subarray(offset, offset + MAPI_BLOCK_SIZE);
             last = (seg.length < MAPI_BLOCK_SIZE) ? 1 : 0;
             const header = Buffer.allocUnsafe(2).fill(0);
             header.writeUint16LE((seg.length << 1) | last , 0);

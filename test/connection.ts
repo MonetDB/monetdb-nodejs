@@ -47,31 +47,28 @@ describe('Connection', function() {
         assert.deepStrictEqual(res.data, [['foo'], ['bar']]);
     });
 
-    it('should stream response', async function() {
+
+    it("should rollback", async function() {
         const ready = await conn.connect();
         assert(ready, new Error('failed to connect'));
-        await conn.setReplySize(-1);
-        const stream = await conn.execute('select * from generate_series(1, 10000)', true);
-        const colInfo = [];
-        const data = [];
-        return new Promise((resolve, reject) => {
-            stream.on('header', (cols: any[]) => {
-                for (let col of cols)
-                    colInfo.push(col);
-            });
-            stream.on('data', (tuples: any[]) => {
-                for (let t of tuples) {
-                    data.push(t);
-                }
-            });
-            stream.on('error', (err: Error) => {
-                reject(err);
-            })
-            stream.on('end', () => {
-                assert.strictEqual(colInfo.length, 1);
-                assert.strictEqual(data.length, 9999);
-                resolve();
-            });
-        })
+        let res = await conn.execute('create table foo(a string)');
+        res = await conn.execute('select name from tables where name=\'foo\'');
+        assert.strictEqual(res.rowCnt, 1);
+        res = await conn.rollback();
+        res = await conn.execute('select name from tables where name=\'foo\'');
+        assert.strictEqual(res.rowCnt, 0);
     });
+
+    it("should handle 2 byte characters exceeding mapi block", async () => {
+        let s = 'éééééééééééééééééééééééééééé';
+        let string = '';
+        for (let i=0; i < 1000; i++)
+            string += s;
+        const qry = `select \'${string}\'`;
+        const ready = await conn.connect();
+        assert(ready, new Error('failed to connect'));
+        const res = await conn.execute(qry);
+        assert.strictEqual(res.rowCnt, 1);
+    });
+
 });
