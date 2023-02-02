@@ -300,6 +300,7 @@ class Response {
     callbacks?: ResponseCallbacks;
     queryStream?: QueryStream;
     headers?: ResponseHeaders;
+    fhandler?: any;
 
     constructor(stream: boolean=false, callbacks?: ResponseCallbacks) {
         this.buff = Buffer.allocUnsafe(MAPI_BLOCK_SIZE).fill(0);
