@@ -678,33 +678,33 @@ class MapiConnection extends EventEmitter {
                 if (options)
                     counterResponse += options.join(',') + ':';
             }
-            this.send(Buffer.from(counterResponse), (err) => {
-                if (err) {
-                    this.emit('error', err);
-                } else {
-                    this.queue.push(new Response());
-                }
-            });
+            this.send(Buffer.from(counterResponse))
+                .then(() => this.queue.push(new Response()))
+                .catch((err) => this.emit('error', err));
         } else {
             this.emit('error', new TypeError(`None of the hashes ${hashes} are supported`));
         }
     }
 
-    send(buff: Buffer, callback?: (err?: Error) => void): void {
-        let last = 0;
-        let offset = 0;
-        while (last === 0) {
-            const seg = buff.subarray(offset, offset + MAPI_BLOCK_SIZE);
-            last = (seg.length < MAPI_BLOCK_SIZE) ? 1 : 0;
-            const header = Buffer.allocUnsafe(2).fill(0);
-            header.writeUint16LE((seg.length << 1) | last , 0);
-            const outBuff = Buffer.concat([header, seg]);
-            this.socket.write(outBuff, (err?: Error) => {
-                if (last && callback)
-                    callback(err);
-            });
-            offset += seg.length;
-        }
+    send(buff: Buffer): Promise<void> {
+        return new Promise((resolve, reject) => {
+            let last = 0;
+            let offset = 0;
+            while (last === 0) {
+                const seg = buff.subarray(offset, offset + MAPI_BLOCK_SIZE);
+                last = (seg.length < MAPI_BLOCK_SIZE) ? 1 : 0;
+                const header = Buffer.allocUnsafe(2).fill(0);
+                header.writeUint16LE((seg.length << 1) | last , 0);
+                const outBuff = Buffer.concat([header, seg]);
+                this.socket.write(outBuff, (err?: Error) => {
+                    if (err)
+                        reject(err);
+                    if (last)
+                        resolve();
+                });
+                offset += seg.length;
+            }
+        })
     }
 
     private handleTimeout() {
@@ -715,23 +715,18 @@ class MapiConnection extends EventEmitter {
         console.error(err);
     }
 
-    request(sql: string, stream:boolean=false): Promise<QueryResult|QueryStream> {
+    async request(sql: string, stream:boolean=false): Promise<QueryResult|QueryStream> {
         if (this.ready() === false)
             throw new Error('Not Connected');
+        await this.send(Buffer.from(sql));
         return new Promise((resolve, reject) => {
-            this.send(Buffer.from(sql), (err?: Error) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    const resp = new Response(stream, {resolve, reject});
-                    this.queue.push(resp)
-                }
-            });
+            const resp = new Response(stream, {resolve, reject});
+            this.queue.push(resp)
         });
     }
 
     private recv(data: Buffer): void {
-        console.log(data.toString('utf8', 2));
+        // console.log(data.toString('utf8', 2));
         let bytesLeftOver: number;
         let resp: Response;
         // process queue left to right, find 1st uncomplete response

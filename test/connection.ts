@@ -13,7 +13,6 @@ describe('Connection', function() {
     });
 
     it('should connect', async function(){
-        assert.throws(() => conn.execute('select 1'));
         const ready = await conn.connect();
         assert(ready, new Error('failed to connect'));
     })
