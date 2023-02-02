@@ -3,6 +3,7 @@ import { once, EventEmitter, Abortable } from 'events';
 import { Buffer } from 'buffer';
 import { createHash } from 'node:crypto';
 import defaults from './defaults';
+import { FileUploader } from './file-transfer';
 
 const MAPI_BLOCK_SIZE = (1024 * 8) - 2;
 const MAPI_HEADER_SIZE = 2;
@@ -140,8 +141,8 @@ type QueryResult = {
     affectedRowCnt?: number;
     columnCnt?: number;
     queryTime?: number; // microseconds
-    sqlOptimizerTime?: number;  //microseconds
-    malOptimizerTime?: number; //microseconds
+    sqlOptimizerTime?: number;  // microseconds
+    malOptimizerTime?: number; // microseconds
     columns?: Column[];
     headers?: ResponseHeaders;
     data?: any[];
@@ -277,7 +278,7 @@ function parseTupleLine(line: string, types: string[]): any[] {
 
 
 interface ResponseCallbacks {
-    resolve: (v: QueryResult | QueryStream) => void;
+    resolve: (v: QueryResult | QueryStream | Promise<any>) => void;
     reject: (err: Error) => void;
 }
 
@@ -401,7 +402,12 @@ class Response {
         return '';
     }
 
+    isFileTransfer(): boolean {
+        return this.toString().startsWith(MSG_FILETRANS);
+    }
+
     isPrompt(): boolean {
+        // perhaps use toString
         return this.complete() && this.firstCharacter() === '\x00';
     }
 
@@ -416,6 +422,11 @@ class Response {
         return this.firstCharacter() === MSG_Q;
     }
 
+    isMsgMore(): boolean {
+        // server wants more ?
+        return this.toString().startsWith(MSG_MORE);
+    }
+
     toString(start?: number) {
         const res = this.buff.toString('utf8', 0, this.offset);
         if (start)
@@ -423,9 +434,9 @@ class Response {
         return res;
     }
 
-    settle(): void {
+    settle(res?: Promise<any>): void {
         if (this.settled === false && this.complete()) {
-            const err = this.errorMessage();
+            const err: string = this.errorMessage();
             if (this.queryStream) {
                 if (err)
                     this.queryStream.emit('error', new Error(err));
@@ -435,7 +446,7 @@ class Response {
                     if (err) {
                         this.callbacks.reject(new Error(err));
                     } else {
-                        this.callbacks.resolve(this.result);
+                        this.callbacks.resolve(res || this.result);
                     }
                 }
             }
@@ -554,6 +565,7 @@ class Segment {
     }
 }
 
+
 class MapiConnection extends EventEmitter {
     state: MAPI_STATE;
     socket: Socket;
@@ -665,7 +677,7 @@ class MapiConnection extends EventEmitter {
                 if (options)
                     counterResponse += options.join(',') + ':';
             }
-            this.send(counterResponse, (err) => {
+            this.send(Buffer.from(counterResponse), (err) => {
                 if (err) {
                     this.emit('error', err);
                 } else {
@@ -677,10 +689,7 @@ class MapiConnection extends EventEmitter {
         }
     }
 
-    send(msg: string, callback?: (err?: Error) => void): void {
-        if (msg)
-            console.log(`>> ${msg}`);
-        let buff = Buffer.from(msg);
+    send(buff: Buffer, callback?: (err?: Error) => void): void {
         let last = 0;
         let offset = 0;
         while (last === 0) {
@@ -706,8 +715,10 @@ class MapiConnection extends EventEmitter {
     }
 
     request(sql: string, stream:boolean=false): Promise<QueryResult|QueryStream> {
+        if (this.ready() === false)
+            throw new Error('Not Connected');
         return new Promise((resolve, reject) => {
-            this.send(sql, (err?: Error) => {
+            this.send(Buffer.from(sql), (err?: Error) => {
                 if (err) {
                     reject(err);
                 } else {
@@ -719,7 +730,7 @@ class MapiConnection extends EventEmitter {
     }
 
     private recv(data: Buffer): void {
-        // console.log(data.toString('utf8', 2));
+        console.log(data.toString('utf8', 2));
         let bytesLeftOver: number;
         let resp: Response;
         // process queue left to right, find 1st uncomplete response
@@ -751,7 +762,6 @@ class MapiConnection extends EventEmitter {
     }
 
     private handleResponse(resp: Response): void {
-        resp.settle();
 
         if (this.state == MAPI_STATE.CONNECTED) {
             const err = resp.errorMessage();
@@ -773,6 +783,32 @@ class MapiConnection extends EventEmitter {
             }
             return this.login(resp.toString());
         }
+
+        if (resp.isFileTransfer()) {
+            let fhandler: any;
+            const msg = resp.toString(MSG_FILETRANS.length).trim();
+            let mode: string, offset: string, file: string;
+            if (msg.startsWith('r ')) {
+                [mode, offset, file] = msg.split(' ');
+                try {
+                    fhandler = resp.fhandler || new FileUploader(this, file, mode, parseInt(offset));
+                    return resp.settle(fhandler.upload());
+                } catch(err) {
+                    resp.settle(Promise.reject(err));
+                }
+
+            } else if (msg.startsWith('rb')) {
+                [mode, file] = msg.split(' ');
+            } else if (msg.startsWith('w')) {
+                [mode, file] = msg.split(' ');
+            } else {
+                // invalid msg
+                // settle with err, throw err?
+            }
+            
+        }
+
+        resp.settle();
     }
 }
 
