@@ -288,6 +288,12 @@ interface ResponseHeaders {
     columnTypes?: string[];
 }
 
+interface ResponseOpt {
+    stream?: boolean;
+    callbacks?: ResponseCallbacks;
+    fileHandler?: any;
+}
+
 
 class Response {
     buff: Buffer;
@@ -297,23 +303,24 @@ class Response {
     settled: boolean;
     segments: Segment[];
     result?: QueryResult;
-    callbacks?: ResponseCallbacks;
+    callbacks: ResponseCallbacks;
     queryStream?: QueryStream;
     headers?: ResponseHeaders;
-    fhandler?: any;
+    fileHandler: any;
 
-    constructor(stream: boolean=false, callbacks?: ResponseCallbacks) {
+    constructor(opt: ResponseOpt={}) {
         this.buff = Buffer.allocUnsafe(MAPI_BLOCK_SIZE).fill(0);
-        this.stream = stream;
         this.offset = 0;
         this.parseOffset = 0;
         this.segments = [];
         this.settled = false;
-        this.callbacks = callbacks;
-        if (stream) {
+        this.stream = opt.stream;
+        this.callbacks = opt.callbacks;
+        this.fileHandler = opt.fileHandler;
+        if (opt.stream) {
             this.queryStream = new QueryStream();
-            if (callbacks && callbacks.resolve)
-                callbacks.resolve(this.queryStream);
+            if (opt.callbacks && opt.callbacks.resolve)
+                opt.callbacks.resolve(this.queryStream);
         }
     }
 
@@ -720,13 +727,23 @@ class MapiConnection extends EventEmitter {
             throw new Error('Not Connected');
         await this.send(Buffer.from(sql));
         return new Promise((resolve, reject) => {
-            const resp = new Response(stream, {resolve, reject});
+            const resp = new Response({
+                stream,
+                callbacks: {resolve, reject}
+            });
             this.queue.push(resp)
         });
     }
 
+    async requestUpload(buff: Buffer, fileHandler: any): Promise<void> {
+        await this.send(buff);
+        const resp = new Response({fileHandler});
+        this.queue.push(resp)
+        return Promise.resolve();
+    }
+
     private recv(data: Buffer): void {
-        // console.log(data.toString('utf8', 2));
+        console.log(data.toString('utf8'));
         let bytesLeftOver: number;
         let resp: Response;
         // process queue left to right, find 1st uncomplete response
@@ -741,8 +758,9 @@ class MapiConnection extends EventEmitter {
             }
         }
         if (resp === undefined && (this.queue.length === 0)) {
-            // must be a challenge message
-            // possibly after redirect
+            // challenge message
+            // or direct call to send has being made
+            // eg request api appends Response to the queue
             resp = new Response();
             this.queue.push(resp);
         }
@@ -781,13 +799,15 @@ class MapiConnection extends EventEmitter {
         }
 
         if (resp.isFileTransfer()) {
+            console.log('file transfer');
+            debugger;;
             let fhandler: any;
             const msg = resp.toString(MSG_FILETRANS.length).trim();
             let mode: string, offset: string, file: string;
             if (msg.startsWith('r ')) {
                 [mode, offset, file] = msg.split(' ');
                 try {
-                    fhandler = resp.fhandler || new FileUploader(this, file, mode, parseInt(offset));
+                    fhandler = resp.fileHandler || new FileUploader(this, file, mode, parseInt(offset));
                     return resp.settle(fhandler.upload());
                 } catch(err) {
                     resp.settle(Promise.reject(err));
@@ -798,10 +818,17 @@ class MapiConnection extends EventEmitter {
             } else if (msg.startsWith('w')) {
                 [mode, file] = msg.split(' ');
             } else {
-                // invalid msg
-                // settle with err, throw err?
+                // no msg end of transfer
+                if(resp.fileHandler)
+                    return resp.fileHandler.close();
             }
-            
+        }
+
+        if (resp.isMsgMore()) {
+            console.log('server wants more');
+            debugger;;
+            if (resp.fileHandler)
+                return resp.settle(resp.fileHandler.upload());
         }
 
         resp.settle();
