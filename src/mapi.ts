@@ -800,7 +800,6 @@ class MapiConnection extends EventEmitter {
 
         if (resp.isFileTransfer()) {
             console.log('file transfer');
-            debugger;;
             let fhandler: any;
             const msg = resp.toString(MSG_FILETRANS.length).trim();
             let mode: string, offset: string, file: string;
@@ -826,7 +825,6 @@ class MapiConnection extends EventEmitter {
 
         if (resp.isMsgMore()) {
             console.log('server wants more');
-            debugger;;
             if (resp.fileHandler)
                 return resp.settle(resp.fileHandler.upload());
         }

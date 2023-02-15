@@ -55,11 +55,10 @@ class FileUploader {
     }
 
     private async sendChunk(): Promise<void> {
-        debugger;;
         const { bytesRead, buffer } = await this.fhandle.read(Buffer.alloc(this.chunkSize), 0, this.chunkSize);
         if (bytesRead > 0) {
             console.log(`read ${bytesRead} bytes`)
-            await this.mapi.requestUpload(buffer.subarray(bytesRead), this);
+            await this.mapi.requestUpload(buffer.subarray(0, bytesRead), this);
             this.bytesSent += bytesRead;
             console.log(`sent ${bytesRead} bytes`)
         } else {
