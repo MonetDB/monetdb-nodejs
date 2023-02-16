@@ -6,7 +6,6 @@ import { cwd } from 'node:process';
 class FileUploader {
     mapi: any;
     file: string;
-    mode: string;
     skip: number;
     bytesSent: number;
     chunkSize: number;
@@ -16,10 +15,9 @@ class FileUploader {
     private resolve: (v?: any) => void;
     private reject: (err?: Error) => void;
     
-    constructor(mapi: any, file: string, mode: string='r', skip: number = 0) {
+    constructor(mapi: any, file: string, skip: number = 0) {
         this.mapi = mapi;
         this.file = file;
-        this.mode = mode;
         this.skip = skip;
         this.bytesSent = 0;
         // configurable?
@@ -35,9 +33,11 @@ class FileUploader {
         if (this.fhandle === undefined) {
             // for security reasons we do 
             // expect file to be relative to cwd
-            this.fhandle = await fs.open(path.join(cwd(), this.file), this.mode);
+            debugger;;
+            this.fhandle = await fs.open(path.join(cwd(), this.file), 'r');
             this.eof = false;
             // tell server we are okay with the upload
+            // send magic new line
             await this.mapi.requestUpload(Buffer.from('\n'), this);
             console.log('sent magic newline');
             return this.makePromise();

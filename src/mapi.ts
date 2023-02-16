@@ -806,16 +806,22 @@ class MapiConnection extends EventEmitter {
             if (msg.startsWith('r ')) {
                 [mode, offset, file] = msg.split(' ');
                 try {
-                    fhandler = resp.fileHandler || new FileUploader(this, file, mode, parseInt(offset));
+                    fhandler = resp.fileHandler || new FileUploader(this, file, parseInt(offset));
                     return resp.settle(fhandler.upload());
                 } catch(err) {
                     resp.settle(Promise.reject(err));
                 }
-
             } else if (msg.startsWith('rb')) {
                 [mode, file] = msg.split(' ');
+                try {
+                    fhandler = resp.fileHandler || new FileUploader(this, file, 0);
+                    return resp.settle(fhandler.upload());
+                } catch(err) {
+                    resp.settle(Promise.reject(err));
+                }
             } else if (msg.startsWith('w')) {
                 [mode, file] = msg.split(' ');
+                resp.settle(Promise.reject("Not Implemented"));
             } else {
                 // no msg end of transfer
                 if(resp.fileHandler)
