@@ -5,7 +5,7 @@ name: macos
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, ts ]
   pull_request:
     branches: [ master ]
 
@@ -18,7 +18,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [10.x, 12.x, 14.x, 15.x]
+        node: ['10', '12', '14', '16', '18']
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
