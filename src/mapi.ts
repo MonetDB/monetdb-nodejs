@@ -743,7 +743,6 @@ class MapiConnection extends EventEmitter {
     }
 
     private recv(data: Buffer): void {
-        console.log(data.toString('utf8'));
         let bytesLeftOver: number;
         let resp: Response;
         // process queue left to right, find 1st uncomplete response
@@ -760,7 +759,7 @@ class MapiConnection extends EventEmitter {
         if (resp === undefined && (this.queue.length === 0)) {
             // challenge message
             // or direct call to send has being made
-            // eg request api appends Response to the queue
+            // e.g. request api appends Response to the queue
             resp = new Response();
             this.queue.push(resp);
         }
