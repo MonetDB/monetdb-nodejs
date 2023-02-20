@@ -28,7 +28,7 @@ describe('File Upload', function() {
         let res = await conn.execute(`copy binary into foo from \'${fooFile}\' on client`);
         res = await conn.execute('select * from foo');
         assert.deepStrictEqual(res.data, [[1], [2], [3]]);
-    })
+    });
 
     it('should upload text file', async function() {
         const ready = await conn.connect();
@@ -42,6 +42,13 @@ describe('File Upload', function() {
         let res = await conn.execute(`copy into foo from \'${fooFile}\' on client`);
         res = await conn.execute('select * from foo');
         assert.deepStrictEqual(res.data, [['foo'], ['bar'], ['bazz']]);
-    })
+    });
+
+    it('should fail on forbidden path', async function() {
+        const ready = await conn.connect();
+        assert(ready, new Error('failed to connect'));
+        await conn.execute('create table foo(i varchar(10))');
+        await assert.rejects(conn.execute(`copy into foo from \'../../foo\' on client`), Error);
+    });
 
 });

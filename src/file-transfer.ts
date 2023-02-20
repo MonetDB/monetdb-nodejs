@@ -24,26 +24,29 @@ class FileUploader {
         this.chunkSize = 1024 * 1024;
     }
 
-    async close(): Promise<void> {
-        await this.fhandle.close();
-        return this.resolve();
+    async close(serverErrMessage?: string): Promise<void> {
+        if (this.fhandle)
+            return await this.fhandle.close();
     }
 
-    async upload(): Promise<any> {
+    async upload(): Promise<void> {
         if (this.fhandle === undefined) {
             // for security reasons we do 
             // expect file to be relative to cwd
-            debugger;;
-            this.fhandle = await fs.open(path.join(cwd(), this.file), 'r');
-            this.eof = false;
-            // tell server we are okay with the upload
-            // send magic new line
-            await this.mapi.requestUpload(Buffer.from('\n'), this);
-            console.log('sent magic newline');
-            return this.makePromise();
+            const fpath = path.join(cwd(), this.file);
+            if (fpath.startsWith(cwd())) {
+                this.fhandle = await fs.open(fpath, 'r');
+                this.eof = false;
+                // tell server we are okay with the upload
+                // send magic new line
+                await this.mapi.requestUpload(Buffer.from('\n'), this);
+                return this.makePromise();
+            } else {
+                // send err msg
+                await this.mapi.requestFileTransferError('Forbidden\n', this);
+                return this.makePromise();
+            }
         }
-        if (this.eof)
-            return this.close();
         return this.sendChunk();
     }
 
@@ -68,7 +71,8 @@ class FileUploader {
             // send empty block to indicate end of upload
             await this.mapi.requestUpload(Buffer.from(''), this);
         }
-        return this.resolve(this.makePromise());
+        /// do we need to resolve after each send chunk?
+        // return this.resolve(this.makePromise());
     }
 }
 

@@ -456,6 +456,10 @@ class Response {
                     } else {
                         this.callbacks.resolve(res || this.result);
                     }
+                } else if (this.fileHandler && this.isQueryResponse()) {
+                    this.fileHandler.resolve(this.result);
+                } else if (this.fileHandler && err) {
+                    this.fileHandler.reject(new Error(err));
                 }
             }
             this.settled = true;
@@ -738,8 +742,13 @@ class MapiConnection extends EventEmitter {
     async requestUpload(buff: Buffer, fileHandler: any): Promise<void> {
         await this.send(buff);
         const resp = new Response({fileHandler});
-        this.queue.push(resp)
-        return Promise.resolve();
+        this.queue.push(resp);
+    }
+
+    async requestFileTransferError(err: string, fileHandler: any): Promise<void> {
+        await this.send(Buffer.from(err));
+        const resp = new Response({fileHandler});
+        this.queue.push(resp);
     }
 
     private recv(data: Buffer): void {
@@ -749,7 +758,7 @@ class MapiConnection extends EventEmitter {
         // remove responses that are completed
         while(this.queue.length) {
             const next = this.queue[0];
-            if (next.complete()) {
+            if (next.complete() || next.settled) {
                 this.queue.shift();
             } else {
                 resp = next;
@@ -775,9 +784,8 @@ class MapiConnection extends EventEmitter {
     }
 
     private handleResponse(resp: Response): void {
-
+        const err = resp.errorMessage();
         if (this.state == MAPI_STATE.CONNECTED) {
-            const err = resp.errorMessage();
             if (err) {
                 this.emit('error', new Error(err));
                 return;
@@ -816,15 +824,17 @@ class MapiConnection extends EventEmitter {
                     fhandler = resp.fileHandler || new FileUploader(this, file, 0);
                     return resp.settle(fhandler.upload());
                 } catch(err) {
-                    resp.settle(Promise.reject(err));
+                    return resp.settle(Promise.reject(err));
                 }
             } else if (msg.startsWith('w')) {
                 [mode, file] = msg.split(' ');
-                resp.settle(Promise.reject("Not Implemented"));
+                return resp.settle(Promise.reject("Not Implemented"));
             } else {
                 // no msg end of transfer
-                if(resp.fileHandler)
-                    return resp.fileHandler.close();
+                const fileHandler = resp.fileHandler;
+                // we do expect a final response from server
+                this.queue.splice(0, 0, new Response({fileHandler}));
+                return resp.settle(fileHandler.close());
             }
         }
 
