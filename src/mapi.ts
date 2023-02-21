@@ -754,7 +754,7 @@ class MapiConnection extends EventEmitter {
         });
     }
 
-    async requestUpload(buff: Buffer, fileHandler: any): Promise<void> {
+    async requestFileTransfer(buff: Buffer, fileHandler: any): Promise<void> {
         await this.send(buff);
         const resp = new Response({fileHandler});
         this.queue.push(resp);

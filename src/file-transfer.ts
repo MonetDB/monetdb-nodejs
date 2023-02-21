@@ -3,21 +3,11 @@ import * as path from 'node:path';
 import { cwd } from 'node:process';
 
 
-interface FileHandler {
+class FileHandler {
     mapi: any;
     file: string;
-    fhandle?: fs.FileHandle;
-    resolve?: (v?: any) => void;
-    reject?: (err?: Error) => void;
-    close: () => Promise<void>;
-}
-
-
-class FileDownloader implements FileHandler {
-    mapi: any;
-    file: string;
-    err?: Error;
     state: string;
+    err?: string;
     fhandle?: fs.FileHandle;
     resolve?: (v?: any) => void;
     reject?: (err?: Error) => void;
@@ -25,6 +15,7 @@ class FileDownloader implements FileHandler {
     constructor(mapi: any, file: string) {
         this.mapi = mapi;
         this.file = file;
+        this.state = 'init';
     }
 
     async close(): Promise<void> {
@@ -33,6 +24,27 @@ class FileDownloader implements FileHandler {
             await this.fhandle.close();
             this.fhandle = undefined;
         }
+    }
+
+    protected makePromise(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            this.resolve = resolve;
+            this.reject = reject;
+        });
+    }
+
+    ready(): boolean {
+        return this.fhandle !== undefined 
+            && this.err === undefined 
+            && this.state === 'ready';
+    }
+}
+
+
+class FileDownloader extends FileHandler {
+
+    constructor(mapi: any, file: string) {
+        super(mapi, file);
     }
 
     async download(): Promise<void> {
@@ -49,7 +61,7 @@ class FileDownloader implements FileHandler {
                 }
                 // tell server we are okay with the download
                 // send magic new line
-                await this.mapi.requestUpload(Buffer.from('\n'), this);
+                await this.mapi.requestFileTransfer(Buffer.from('\n'), this);
                 this.state = 'ready';
                 return this.makePromise();
             } else {
@@ -61,18 +73,6 @@ class FileDownloader implements FileHandler {
 
     }
 
-    private makePromise(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            this.resolve = resolve;
-            this.reject = reject;
-        });
-    }
-
-    ready(): boolean {
-        return this.fhandle !== undefined 
-            && this.err === undefined 
-            && this.state === 'ready';
-    }
 
     async writeChunk(data: Buffer): Promise<number> {
         let bytes = 0;
@@ -91,29 +91,18 @@ class FileDownloader implements FileHandler {
 }
 
 
-class FileUploader {
-    mapi: any;
-    file: string;
+class FileUploader extends FileHandler {
     skip: number;
     bytesSent: number;
     chunkSize: number;
     eof: boolean;
-    fhandle?: fs.FileHandle;
-    resolve?: (v?: any) => void;
-    reject?: (err?: Error) => void;
     
     constructor(mapi: any, file: string, skip: number = 0) {
-        this.mapi = mapi;
-        this.file = file;
+        super(mapi, file);
         this.skip = skip;
         this.bytesSent = 0;
         // configurable?
         this.chunkSize = 1024 * 1024;
-    }
-
-    async close(): Promise<void> {
-        if (this.fhandle)
-            return await this.fhandle.close();
     }
 
     async upload(): Promise<void> {
@@ -128,10 +117,11 @@ class FileUploader {
                     await this.mapi.requestFileTransferError(`${err}\n`, this);
                     return this.makePromise();
                 }
-                this.eof = false;
                 // tell server we are okay with the upload
                 // send magic new line
-                await this.mapi.requestUpload(Buffer.from('\n'), this);
+                await this.mapi.requestFileTransfer(Buffer.from('\n'), this);
+                this.eof = false;
+                this.state = 'ready';
                 return this.makePromise();
             } else {
                 // send err msg
@@ -142,29 +132,20 @@ class FileUploader {
         return this.sendChunk();
     }
 
-    private makePromise(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            this.resolve = resolve;
-            this.reject = reject;
-        });
-    }
-
     private async sendChunk(): Promise<void> {
         const { bytesRead, buffer } = await this.fhandle.read(Buffer.alloc(this.chunkSize), 0, this.chunkSize);
         if (bytesRead > 0) {
-            console.log(`read ${bytesRead} bytes`)
-            await this.mapi.requestUpload(buffer.subarray(0, bytesRead), this);
+            // console.log(`read ${bytesRead} bytes`)
+            await this.mapi.requestFileTransfer(buffer.subarray(0, bytesRead), this);
             this.bytesSent += bytesRead;
-            console.log(`sent ${bytesRead} bytes`)
+            // console.log(`sent ${bytesRead} bytes`)
         } else {
             // reached EOF
             this.eof = true;
             console.log(`reached eof`);
             // send empty block to indicate end of upload
-            await this.mapi.requestUpload(Buffer.from(''), this);
+            await this.mapi.requestFileTransfer(Buffer.from(''), this);
         }
-        /// do we need to resolve after each send chunk?
-        // return this.resolve(this.makePromise());
     }
 }
 
