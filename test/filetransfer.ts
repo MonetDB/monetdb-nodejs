@@ -44,6 +44,14 @@ describe('File Upload', function() {
         assert.deepStrictEqual(res.data, [['foo'], ['bar'], ['bazz']]);
     });
 
+    it('should download text file', async function() {
+        const ready = await conn.connect();
+        assert(ready, new Error('failed to connect'));
+        let res = await conn.execute('copy (select * from sys.generate_series(1,11)) into \'test/tmp/foo\' on client');
+        console.log(res);
+        assert.strictEqual(res.affectedRows, 10);
+    });
+
     it('should fail on forbidden path', async function() {
         const ready = await conn.connect();
         assert(ready, new Error('failed to connect'));

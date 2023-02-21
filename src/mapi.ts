@@ -3,7 +3,7 @@ import { once, EventEmitter, Abortable } from 'events';
 import { Buffer } from 'buffer';
 import { createHash } from 'node:crypto';
 import defaults from './defaults';
-import { FileUploader } from './file-transfer';
+import { FileUploader, FileDownloader } from './file-transfer';
 
 const MAPI_BLOCK_SIZE = (1024 * 8) - 2;
 const MAPI_HEADER_SIZE = 2;
@@ -138,7 +138,7 @@ type QueryResult = {
     type?: string;
     queryId?: number;
     rowCnt?: number;
-    affectedRowCnt?: number;
+    affectedRows?: number;
     columnCnt?: number;
     queryTime?: number; // microseconds
     sqlOptimizerTime?: number;  // microseconds
@@ -344,7 +344,14 @@ class Response {
                 const bytes = hdr >> 1;
                 srcStartIndx = MAPI_HEADER_SIZE;
                 srcEndIndx = srcStartIndx + Math.min(bytes, data.length);
-                bytesCopied = data.copy(this.buff, this.offset, srcStartIndx, srcEndIndx);
+                if (this.fileHandler instanceof FileDownloader && this.fileHandler.ready()) {
+                    const chunk = data.subarray(srcStartIndx, srcEndIndx);
+                    // write to file
+                    this.fileHandler.writeChunk(chunk);
+                    bytesCopied = chunk.length;
+                } else {
+                    bytesCopied = data.copy(this.buff, this.offset, srcStartIndx, srcEndIndx);
+                }
                 segment = new Segment(bytes, last, this.offset, bytesCopied);
                 this.segments.push(segment);
                 this.offset += bytesCopied;
@@ -352,7 +359,14 @@ class Response {
             } else {
                 const byteCntToRead = segment.bytes - segment.bytesOffset;
                 srcEndIndx = srcStartIndx + byteCntToRead;
-                bytesCopied = data.copy(this.buff, this.offset, srcStartIndx, srcEndIndx);
+                if (this.fileHandler instanceof FileDownloader && this.fileHandler.ready()) {
+                    const chunk = data.subarray(srcStartIndx, srcEndIndx);
+                    // write to file
+                    this.fileHandler.writeChunk(chunk);
+                    bytesCopied = chunk.length;
+                } else {
+                    bytesCopied = data.copy(this.buff, this.offset, srcStartIndx, srcEndIndx);
+                }
                 this.offset += bytesCopied;
                 segment.bytesOffset += bytesCopied;
                 // console.log(`segment is full ${segment.bytesOffset === segment.bytes}`);
@@ -472,8 +486,8 @@ class Response {
         if (this.isQueryResponse()) {
             let eol = data.indexOf('\n');
             this.result = this.result || {};
-            // process 1st line
-            if (this.result.type === undefined && data.startsWith(MSG_Q) && lines > 5) {
+            if (this.result.type === undefined && data.startsWith(MSG_Q) && lines > 0) {
+                // process 1st line
                 const line = data.substring(0, eol);
                 this.result.type = line.substring(0, 2);
                 const rest = line.substring(3).trim().split(' ');
@@ -491,7 +505,7 @@ class Response {
                 } else if(this.result.type === MSG_QUPDATE) {
                     const [affectedRowCnt, autoIncrementId, queryId,
                         queryTime, malOptimizerTime, sqlOptimizerTime] = rest;
-                    this.result.affectedRowCnt = parseInt(affectedRowCnt);
+                    this.result.affectedRows = parseInt(affectedRowCnt);
                     this.result.queryId = parseInt(queryId);
                     this.result.queryTime = parseInt(queryTime);
                     this.result.malOptimizerTime = parseInt(malOptimizerTime);
@@ -508,8 +522,9 @@ class Response {
                     this.result.rowCnt = parseInt(rowCnt);
                     this.result.columnCnt = parseInt(columnCnt);
                 }
+                // end 1st line
 
-                if (this.headers === undefined && (data.charAt(eol + 1) === MSG_HEADER)) {
+                if (this.headers === undefined && (data.charAt(eol + 1) === MSG_HEADER) && lines > 5) {
                     let headers: ResponseHeaders = {};
                     while(data.charAt(eol + 1) === MSG_HEADER) {
                         const hs = eol + 1;
@@ -826,14 +841,19 @@ class MapiConnection extends EventEmitter {
                 } catch(err) {
                     return resp.settle(Promise.reject(err));
                 }
-            } else if (msg.startsWith('w')) {
+            } else if (msg.startsWith('w ')) {
                 [mode, file] = msg.split(' ');
-                return resp.settle(Promise.reject("Not Implemented"));
+                try {
+                    fhandler = resp.fileHandler || new FileDownloader(this, file);
+                    return resp.settle(fhandler.download());
+                } catch(err) {
+                    return resp.settle(Promise.reject(err));
+                }
             } else {
                 // no msg end of transfer
                 const fileHandler = resp.fileHandler;
                 // we do expect a final response from server
-                this.queue.splice(0, 0, new Response({fileHandler}));
+                this.queue.push(new Response({fileHandler}));
                 return resp.settle(fileHandler.close());
             }
         }
@@ -844,6 +864,13 @@ class MapiConnection extends EventEmitter {
                 return resp.settle(resp.fileHandler.upload());
         }
 
+        if (resp.fileHandler instanceof FileDownloader && resp.fileHandler.ready()) {
+            // end of download
+            const fileHandler = resp.fileHandler;
+            // we do expect a final response from server
+            this.queue.push(new Response({fileHandler}));
+            return resp.settle(fileHandler.close());
+        }
         resp.settle();
     }
 }
