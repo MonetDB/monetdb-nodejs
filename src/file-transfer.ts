@@ -99,7 +99,7 @@ class FileUploader extends FileHandler {
     
     constructor(mapi: any, file: string, skip: number = 0) {
         super(mapi, file);
-        this.skip = skip;
+        this.skip = skip > 0 ? skip - 1 : 0; // line based offset, super confusing
         this.bytesSent = 0;
         // configurable?
         this.chunkSize = 1024 * 1024;
@@ -133,7 +133,22 @@ class FileUploader extends FileHandler {
     }
 
     private async sendChunk(): Promise<void> {
-        const { bytesRead, buffer } = await this.fhandle.read(Buffer.alloc(this.chunkSize), 0, this.chunkSize);
+        let bytesRead: number = 0;
+        let buffer: Buffer = Buffer.alloc(0);
+        do {
+            const res = await this.fhandle.read(Buffer.alloc(this.chunkSize), 0, this.chunkSize);
+            bytesRead += res.bytesRead;
+            const data = Buffer.concat([buffer, res.buffer]).toString('utf8');
+            let offset: number = 0;
+            let eol = data.indexOf('\n');
+            while(this.skip && eol) {
+                offset = eol + 1;
+                this.skip--;
+                eol = data.indexOf('\n', offset);
+            }
+            buffer = Buffer.from(data).subarray(offset);
+        } while(this.skip && this.bytesSent === 0)
+
         if (bytesRead > 0) {
             // console.log(`read ${bytesRead} bytes`)
             await this.mapi.requestFileTransfer(buffer.subarray(0, bytesRead), this);

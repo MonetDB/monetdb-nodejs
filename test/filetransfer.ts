@@ -33,16 +33,31 @@ describe('File Upload', function() {
     it('should upload text file', async function() {
         const ready = await conn.connect();
         assert(ready, new Error('failed to connect'));
-        await conn.execute('create table foo(i varchar(10))');
+        await conn.execute('create table foo(i int, a varchar(10))');
         const f = await fs.open(fooFile, 'w');
-        for (let word of ['foo', 'bar', 'bazz']) {
+        for (let word of ['1|one', '2|two', '3|three']) {
             f.write(word + '\n');
         }
         await f.close();
         let res = await conn.execute(`copy into foo from \'${fooFile}\' on client`);
-        res = await conn.execute('select * from foo');
-        assert.deepStrictEqual(res.data, [['foo'], ['bar'], ['bazz']]);
+        res = await conn.execute('select a from foo order by i');
+        assert.deepStrictEqual(res.data, [['one'], ['two'], ['three']]);
     });
+
+    it('should upload text file skip 2', async function() {
+        const ready = await conn.connect();
+        assert(ready, new Error('failed to connect'));
+        await conn.execute('create table foo(i int, a varchar(10))');
+        const f = await fs.open(fooFile, 'w');
+        for (let word of ['1|one', '2|two', '3|three', '4|four', '5|five', '6|six']) {
+            f.write(word + '\n');
+        }
+        await f.close();
+        let res = await conn.execute(`copy offset 3 into foo from \'${fooFile}\' on client`);
+        res = await conn.execute('select a from foo order by i');
+        assert.deepStrictEqual(res.data, [['three'], ['four'], ['five'], ['six']]);
+    });
+
 
     it('should download text file', async function() {
         const ready = await conn.connect();

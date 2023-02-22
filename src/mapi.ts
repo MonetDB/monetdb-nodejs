@@ -860,7 +860,7 @@ class MapiConnection extends EventEmitter {
 
         if (resp.isMsgMore()) {
             console.log('server wants more');
-            if (resp.fileHandler)
+            if (resp.fileHandler instanceof FileUploader)
                 return resp.settle(resp.fileHandler.upload());
         }
 
