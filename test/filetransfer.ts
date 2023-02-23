@@ -40,8 +40,8 @@ describe('File Upload', function() {
         }
         await f.close();
         let res = await conn.execute(`copy into foo from \'${fooFile}\' on client`);
-        res = await conn.execute('select a from foo order by i');
-        assert.deepStrictEqual(res.data, [['one'], ['two'], ['three']]);
+        res = await conn.execute('select * from foo order by i');
+        assert.deepStrictEqual(res.data, [[1, 'one'], [2, 'two'], [3, 'three']]);
     });
 
     it('should upload text file skip 2', async function() {
@@ -54,8 +54,8 @@ describe('File Upload', function() {
         }
         await f.close();
         let res = await conn.execute(`copy offset 3 into foo from \'${fooFile}\' on client`);
-        res = await conn.execute('select a from foo order by i');
-        assert.deepStrictEqual(res.data, [['three'], ['four'], ['five'], ['six']]);
+        res = await conn.execute('select * from foo order by i');
+        assert.deepStrictEqual(res.data, [[3, 'three'], [4, 'four'], [5, 'five'], [6, 'six']]);
     });
 
 

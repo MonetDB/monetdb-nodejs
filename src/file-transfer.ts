@@ -8,6 +8,7 @@ class FileHandler {
     file: string;
     state: string;
     err?: string;
+    eof?: boolean;
     fhandle?: fs.FileHandle;
     resolve?: (v?: any) => void;
     reject?: (err?: Error) => void;
@@ -38,6 +39,34 @@ class FileHandler {
             && this.err === undefined 
             && this.state === 'ready';
     }
+
+    async initTransfer(flag: 'r'|'w'): Promise<void> {
+        if (this.fhandle === undefined) {
+            // for security reasons we do 
+            // expect file to be relative to cwd
+            const fpath = path.join(cwd(), this.file);
+            if (fpath.startsWith(cwd())) {
+                try {
+                    this.fhandle = await fs.open(fpath, flag);
+                } catch (err) {
+                    await this.mapi.requestFileTransferError(`${err}\n`, this);
+                    return this.makePromise();
+                }
+                // tell server we are okay with the download
+                // send magic new line
+                await this.mapi.requestFileTransfer(Buffer.from('\n'), this);
+                this.state = 'ready';
+                if (flag === 'r')
+                    this.eof = false;
+                return this.makePromise();
+            } else {
+                // send err msg
+                await this.mapi.requestFileTransferError('Forbidden\n', this);
+                return this.makePromise();
+            }
+        }
+
+    }
 }
 
 
@@ -48,31 +77,9 @@ class FileDownloader extends FileHandler {
     }
 
     async download(): Promise<void> {
-        if (this.fhandle === undefined) {
-            // for security reasons we do 
-            // expect file to be relative to cwd
-            const fpath = path.join(cwd(), this.file);
-            if (fpath.startsWith(cwd())) {
-                try {
-                    this.fhandle = await fs.open(fpath, 'w');
-                } catch (err) {
-                    await this.mapi.requestFileTransferError(`${err}\n`, this);
-                    return this.makePromise();
-                }
-                // tell server we are okay with the download
-                // send magic new line
-                await this.mapi.requestFileTransfer(Buffer.from('\n'), this);
-                this.state = 'ready';
-                return this.makePromise();
-            } else {
-                // send err msg
-                await this.mapi.requestFileTransferError('Forbidden\n', this);
-                return this.makePromise();
-            }
-        }
-
+        if (this.state === 'init')
+            return this.initTransfer('w');
     }
-
 
     async writeChunk(data: Buffer): Promise<number> {
         let bytes = 0;
@@ -82,7 +89,8 @@ class FileDownloader extends FileHandler {
                 bytes += bytesWritten;
             } catch(err) {
                 this.err = err;
-                throw err;
+                await this.mapi.requestAbort();
+                this.reject(err);
             }
         }
         return bytes;
@@ -106,30 +114,15 @@ class FileUploader extends FileHandler {
     }
 
     async upload(): Promise<void> {
-        if (this.fhandle === undefined) {
-            // for security reasons we do 
-            // expect file to be relative to cwd
-            const fpath = path.join(cwd(), this.file);
-            if (fpath.startsWith(cwd())) {
-                try {
-                    this.fhandle = await fs.open(fpath, 'r');
-                } catch(err) {
-                    await this.mapi.requestFileTransferError(`${err}\n`, this);
-                    return this.makePromise();
-                }
-                // tell server we are okay with the upload
-                // send magic new line
-                await this.mapi.requestFileTransfer(Buffer.from('\n'), this);
-                this.eof = false;
-                this.state = 'ready';
-                return this.makePromise();
-            } else {
-                // send err msg
-                await this.mapi.requestFileTransferError('Forbidden\n', this);
-                return this.makePromise();
-            }
+        if (this.state === 'init')
+            return this.initTransfer('r');
+        try {
+            return this.sendChunk();
+        } catch(err) {
+            this.err = err;
+            await this.mapi.requestAbort();
+            return this.reject(err);
         }
-        return this.sendChunk();
     }
 
     private async sendChunk(): Promise<void> {
@@ -157,7 +150,7 @@ class FileUploader extends FileHandler {
         } else {
             // reached EOF
             this.eof = true;
-            console.log(`reached eof`);
+            // console.log(`reached eof`);
             // send empty block to indicate end of upload
             await this.mapi.requestFileTransfer(Buffer.from(''), this);
         }

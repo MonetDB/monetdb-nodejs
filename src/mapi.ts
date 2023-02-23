@@ -712,6 +712,22 @@ class MapiConnection extends EventEmitter {
         }
     }
 
+    requestAbort(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const header = Buffer.allocUnsafe(2).fill(0);
+            // larger than allowed and not final message
+            header.writeUint16LE((2*MAPI_BLOCK_SIZE << 1) | 0 , 0);
+            const badBody = Buffer.concat([Buffer.from('ERROR'), Buffer.from([0x80])]);
+            const outBuff = Buffer.concat([header, badBody]);
+            this.socket.write(outBuff, async (err?: Error) => {
+                if (err)
+                    reject(err);
+                await this.disconnect();
+                resolve();
+            });
+        });
+    }
+
     send(buff: Buffer): Promise<void> {
         return new Promise((resolve, reject) => {
             let last = 0;
@@ -827,28 +843,16 @@ class MapiConnection extends EventEmitter {
             let mode: string, offset: string, file: string;
             if (msg.startsWith('r ')) {
                 [mode, offset, file] = msg.split(' ');
-                try {
-                    fhandler = resp.fileHandler || new FileUploader(this, file, parseInt(offset));
-                    return resp.settle(fhandler.upload());
-                } catch(err) {
-                    resp.settle(Promise.reject(err));
-                }
+                fhandler = resp.fileHandler || new FileUploader(this, file, parseInt(offset));
+                return resp.settle(fhandler.upload());
             } else if (msg.startsWith('rb')) {
                 [mode, file] = msg.split(' ');
-                try {
-                    fhandler = resp.fileHandler || new FileUploader(this, file, 0);
-                    return resp.settle(fhandler.upload());
-                } catch(err) {
-                    return resp.settle(Promise.reject(err));
-                }
+                fhandler = resp.fileHandler || new FileUploader(this, file, 0);
+                return resp.settle(fhandler.upload());
             } else if (msg.startsWith('w ')) {
                 [mode, file] = msg.split(' ');
-                try {
-                    fhandler = resp.fileHandler || new FileDownloader(this, file);
-                    return resp.settle(fhandler.download());
-                } catch(err) {
-                    return resp.settle(Promise.reject(err));
-                }
+                fhandler = resp.fileHandler || new FileDownloader(this, file);
+                return resp.settle(fhandler.download());
             } else {
                 // no msg end of transfer
                 const fileHandler = resp.fileHandler;
