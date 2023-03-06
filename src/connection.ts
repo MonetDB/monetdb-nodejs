@@ -20,7 +20,7 @@ class Connection extends EventEmitter {
 
     constructor(params: MapiConfig | MAPI_URI) {
         super();
-        const config = (typeof params === 'string') ? parseMapiUri(params) : createMapiConfig(params);
+        const config = (typeof params === 'string') ? createMapiConfig(parseMapiUri(params)) : createMapiConfig(params);
         this.mapi = new MapiConnection(config);
         this.autoCommit = config.autoCommit;
         this.replySize = config.replySize;

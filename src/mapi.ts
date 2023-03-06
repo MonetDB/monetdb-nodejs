@@ -3,6 +3,7 @@ import { once, EventEmitter, Abortable } from 'events';
 import { Buffer, constants } from 'buffer';
 import { createHash } from 'node:crypto';
 import defaults from './defaults';
+import { URL } from 'node:url';
 import { FileUploader, FileDownloader } from './file-transfer';
 
 const MAPI_BLOCK_SIZE = (1024 * 8) - 2;
@@ -78,9 +79,21 @@ function isMapiUri(uri:string): boolean {
 
 function parseMapiUri(uri: string): MapiConfig {
     if (isMapiUri(uri)) {
-        const res = {database: '', username: '', password: ''};
-        // TODO return parsed result as object
-        return res;
+        const url = new URL(uri.substring(5));
+        if (url.hostname) {
+            const host = url.hostname;
+            const port = parseInt(url.port);
+            const username = url.username;
+            const password = url.password;
+            const database = url.pathname.split('/')[1];
+            return {
+                host,
+                port,
+                username,
+                password,
+                database,
+            }
+        }
     }
     throw new Error(`Invalid MAPI URI ${uri}!`);
 }
