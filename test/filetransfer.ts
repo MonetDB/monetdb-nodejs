@@ -2,7 +2,7 @@ import assert from 'assert';
 import Connection from '../src/connection';
 import fs from 'node:fs/promises';
 
-describe('File Upload', function() {
+describe('File Transfer', function() {
     let conn: Connection;
     let fooFile = 'test/tmp/foo'
     beforeEach(function() {
@@ -62,9 +62,8 @@ describe('File Upload', function() {
     it('should download text file', async function() {
         const ready = await conn.connect();
         assert(ready, new Error('failed to connect'));
-        let res = await conn.execute('copy (select * from sys.generate_series(1,11)) into \'test/tmp/foo\' on client');
-        console.log(res);
-        assert.strictEqual(res.affectedRows, 10);
+        let res = await conn.execute('copy (select * from sys.generate_series(1,1001)) into \'test/tmp/foo\' on client');
+        assert.strictEqual(res.affectedRows, 1000);
     });
 
     it('should fail on forbidden path', async function() {

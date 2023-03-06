@@ -1,6 +1,6 @@
 import { Socket, SocketConnectOpts } from 'node:net';
 import { once, EventEmitter, Abortable } from 'events';
-import { Buffer } from 'buffer';
+import { Buffer, constants } from 'buffer';
 import { createHash } from 'node:crypto';
 import defaults from './defaults';
 import { FileUploader, FileDownloader } from './file-transfer';
@@ -27,6 +27,7 @@ const MSG_REDIRECT = "^";
 const MSG_OK = "=OK";
 
 const MAX_REDIRECTS = 10;
+const MAX_BUFF_SIZE = constants.MAX_LENGTH;
 
 enum MAPI_STATE {
     INIT=1,
@@ -344,14 +345,7 @@ class Response {
                 const bytes = hdr >> 1;
                 srcStartIndx = MAPI_HEADER_SIZE;
                 srcEndIndx = srcStartIndx + Math.min(bytes, data.length);
-                if (this.fileHandler instanceof FileDownloader && this.fileHandler.ready()) {
-                    const chunk = data.subarray(srcStartIndx, srcEndIndx);
-                    // write to file
-                    this.fileHandler.writeChunk(chunk);
-                    bytesCopied = chunk.length;
-                } else {
-                    bytesCopied = data.copy(this.buff, this.offset, srcStartIndx, srcEndIndx);
-                }
+                bytesCopied = data.copy(this.buff, this.offset, srcStartIndx, srcEndIndx);
                 segment = new Segment(bytes, last, this.offset, bytesCopied);
                 this.segments.push(segment);
                 this.offset += bytesCopied;
@@ -359,14 +353,7 @@ class Response {
             } else {
                 const byteCntToRead = segment.bytes - segment.bytesOffset;
                 srcEndIndx = srcStartIndx + byteCntToRead;
-                if (this.fileHandler instanceof FileDownloader && this.fileHandler.ready()) {
-                    const chunk = data.subarray(srcStartIndx, srcEndIndx);
-                    // write to file
-                    this.fileHandler.writeChunk(chunk);
-                    bytesCopied = chunk.length;
-                } else {
-                    bytesCopied = data.copy(this.buff, this.offset, srcStartIndx, srcEndIndx);
-                }
+                bytesCopied = data.copy(this.buff, this.offset, srcStartIndx, srcEndIndx);
                 this.offset += bytesCopied;
                 segment.bytesOffset += bytesCopied;
                 // console.log(`segment is full ${segment.bytesOffset === segment.bytes}`);
@@ -405,7 +392,27 @@ class Response {
         return false;
     }
 
+    private seekOffset(): number {
+        const len = this.segments.length;
+        if (len) {
+            const last = this.segments[len - 1];
+            if (last.isFull())
+                return last.offset + last.bytes;
+            return last.offset;
+        }
+        return 0;
+    }
+
     private expand(byteCount: number): number {
+        if((this.buff.length + byteCount) > MAX_BUFF_SIZE
+           && (this.fileHandler instanceof FileDownloader)) {
+               const offset = this.seekOffset();
+               if (offset) {
+                   this.fileHandler.writeChunk(this.buff.subarray(0, offset));
+                   this.buff = this.buff.subarray(offset);
+                   this.offset -= offset;
+               }
+        }
         const buff = Buffer.allocUnsafe(this.buff.length + byteCount).fill(0);
         const bytesCopied = this.buff.copy(buff);
         this.buff = buff;
@@ -458,22 +465,23 @@ class Response {
 
     settle(res?: Promise<any>): void {
         if (this.settled === false && this.complete()) {
-            const err: string = this.errorMessage();
+            const errMsg = this.errorMessage();
+            const err = errMsg? new Error(errMsg) : null;
             if (this.queryStream) {
                 if (err)
-                    this.queryStream.emit('error', new Error(err));
+                    this.queryStream.emit('error', err);
                 this.queryStream.end();
             } else {
                 if (this.callbacks) {
                     if (err) {
-                        this.callbacks.reject(new Error(err));
+                        this.callbacks.reject(err);
                     } else {
                         this.callbacks.resolve(res || this.result);
                     }
                 } else if (this.fileHandler && this.isQueryResponse()) {
                     this.fileHandler.resolve(this.result);
-                } else if (this.fileHandler && err) {
-                    this.fileHandler.reject(new Error(err));
+                } else if (this.fileHandler && (err || this.fileHandler.err)) {
+                    this.fileHandler.reject(err || this.fileHandler.err);
                 }
             }
             this.settled = true;
@@ -712,17 +720,20 @@ class MapiConnection extends EventEmitter {
         }
     }
 
+    /**
+     * Raise exception on server by sending bad packet
+     */ 
     requestAbort(): Promise<void> {
         return new Promise((resolve, reject) => {
             const header = Buffer.allocUnsafe(2).fill(0);
             // larger than allowed and not final message
             header.writeUint16LE((2*MAPI_BLOCK_SIZE << 1) | 0 , 0);
+            // invalid utf8 and too small
             const badBody = Buffer.concat([Buffer.from('ERROR'), Buffer.from([0x80])]);
             const outBuff = Buffer.concat([header, badBody]);
             this.socket.write(outBuff, async (err?: Error) => {
                 if (err)
                     reject(err);
-                await this.disconnect();
                 resolve();
             });
         });
@@ -803,7 +814,9 @@ class MapiConnection extends EventEmitter {
             resp = new Response();
             this.queue.push(resp);
         }
+
         const offset = resp.append(data);
+
         if (resp.complete())
             this.handleResponse(resp);
         bytesLeftOver = data.length - offset;
@@ -871,6 +884,7 @@ class MapiConnection extends EventEmitter {
         if (resp.fileHandler instanceof FileDownloader && resp.fileHandler.ready()) {
             // end of download
             const fileHandler = resp.fileHandler;
+            fileHandler.writeChunk(resp.buff);
             // we do expect a final response from server
             this.queue.push(new Response({fileHandler}));
             return resp.settle(fileHandler.close());

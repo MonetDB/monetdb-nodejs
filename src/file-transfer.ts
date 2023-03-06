@@ -71,9 +71,11 @@ class FileHandler {
 
 
 class FileDownloader extends FileHandler {
+    bytesWritten: number;
 
     constructor(mapi: any, file: string) {
         super(mapi, file);
+        this.bytesWritten = 0;
     }
 
     async download(): Promise<void> {
@@ -83,19 +85,28 @@ class FileDownloader extends FileHandler {
 
     async writeChunk(data: Buffer): Promise<number> {
         let bytes = 0;
-        if (this.fhandle) {
+        if (this.ready()) {
             try {
                 const { bytesWritten, buffer } = await this.fhandle.write(data);
                 bytes += bytesWritten;
             } catch(err) {
                 this.err = err;
-                await this.mapi.requestAbort();
+                try {
+                    await this.mapi.requestAbort();
+                } catch(err) {
+                    // pass
+                    console.error(err);
+                }
+                await this.close();
                 this.reject(err);
+                // kill connection
+                await this.mapi.disconnect();
+                throw err;
             }
         }
+        this.bytesWritten += bytes;
         return bytes;
     }
-
 }
 
 
@@ -117,10 +128,11 @@ class FileUploader extends FileHandler {
         if (this.state === 'init')
             return this.initTransfer('r');
         try {
-            return this.sendChunk();
+            await this.sendChunk();
         } catch(err) {
             this.err = err;
             await this.mapi.requestAbort();
+            await this.close();
             return this.reject(err);
         }
     }
