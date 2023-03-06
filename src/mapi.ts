@@ -862,7 +862,7 @@ class MapiConnection extends EventEmitter {
                 [mode, file] = msg.split(' ');
                 fhandler = resp.fileHandler || new FileUploader(this, file, 0);
                 return resp.settle(fhandler.upload());
-            } else if (msg.startsWith('w ')) {
+            } else if (msg.startsWith('w')) {
                 [mode, file] = msg.split(' ');
                 fhandler = resp.fileHandler || new FileDownloader(this, file);
                 return resp.settle(fhandler.download());
