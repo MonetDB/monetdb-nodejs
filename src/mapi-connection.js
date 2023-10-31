@@ -101,7 +101,7 @@ module.exports = function MapiConnection(options) {
             options.debugMapiFn(options.logger, 'TX', message);
         }
 
-        var buf = new Buffer(message, 'utf8');
+        var buf = new Buffer.from(message, 'utf8');
         var final = 0;
         while (final == 0) {
             var bs = Math.min(buf.length, _mapiBlockSize - 2);
@@ -113,7 +113,7 @@ module.exports = function MapiConnection(options) {
 
             _debug('Writing ' + bs + ' bytes, final=' + final);
 
-            var hdrbuf = new Buffer(2);
+            var hdrbuf = new Buffer.alloc(2);
             hdrbuf.writeInt16LE((bs << 1) | final, 0);
             if(!_socket) return;
             _socket.write(Buffer.concat([hdrbuf, sendbuf]));
@@ -144,7 +144,7 @@ module.exports = function MapiConnection(options) {
             //String concat involve problems with 2 bytes characters like é ou à 			
             //_readStr = _readStr + data.toString('utf8', 0, read_cnt);
 			
-			var buf = new Buffer(read_cnt);
+			var buf = Buffer.allocUnsafe(read_cnt).fill(0);
 			data.copy(buf, 0, 0, read_cnt);
             _readStr = _readStr + decoder.write(buf);
             
@@ -184,7 +184,7 @@ module.exports = function MapiConnection(options) {
 
         /* also, the buffer might contain more blocks or parts thereof */
         if (data.length > read_cnt) {
-            var leftover = new Buffer(data.length - read_cnt);
+            var leftover = Buffer.allocUnsafe(data.length - read_cnt).fill(0);
             data.copy(leftover, 0, read_cnt, data.length);
             _handleData(leftover);
         }
