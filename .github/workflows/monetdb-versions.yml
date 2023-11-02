@@ -1,0 +1,42 @@
+name: Test against various MonetDB versions
+on:
+  push:
+    branches: [ master, ts ]
+  pull_request:
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+  schedule:
+    - cron:  '5 0 * * *'
+
+jobs:
+  run_tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18']
+        monetdbversion:
+          - "monetdb/dev-builds:Jan2022"
+          - "monetdb/dev-builds:Sep2022"
+          - "monetdb/dev-builds:Jun2023"
+          - "monetdb/dev-builds:default"
+    services:
+      monetdb:
+        image: ${{ matrix.monetdbversion }}
+        env:
+          MDB_DAEMON_PASS: monetdb
+          MDB_DB_ADMIN_PASS: monetdb
+          MDB_CREATE_DBS: test
+        ports:
+          - 50000:50000
+    steps:
+      - name: Check out
+        uses: actions/checkout@v3
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Run tests
+        run: npm t
