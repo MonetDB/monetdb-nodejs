@@ -1,0 +1,27 @@
+---
+title: Getting Started
+slug: /
+---
+
+## Installation
+
+```bash
+$ npm install monetdb
+```
+
+## Usage
+The simplest way to connect is to use default connection options and pass only the database name.
+
+```js
+import { Connection} from 'monetdb'
+
+const opt = {database: 'test'}
+
+const conn = new Connection(opt)
+const ready = await conn.connect();
+const res = conn.exec('select 42');
+console.log(res.data)
+await conn.close();
+```
+, see [connection api](/apis/connection) for more details.
+
