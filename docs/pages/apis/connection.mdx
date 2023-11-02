@@ -1,0 +1,60 @@
+## Connecting
+```ts
+const conn = new Connection(config: MapiConfig | string);
+```
+, all the optional fields get default values if not specified.
+### Using configuration options
+```ts
+interface MapiConfig {
+    database: string;
+    username?: string;
+    password?: string;
+    language?: MAPI_LANGUAGE; // sql
+    host?: string;
+    port?: number;
+    timeout?: number;
+    autoCommit?: boolean;
+    replySize?: number;
+}
+
+const defaults = {
+    host: process.env.MAPI_HOST || 'localhost',
+    port: process.env.MAPI_PORT || 50000,
+    username: process.env.MAPI_USER || 'monetdb',
+    password: process.env.MAPI_PASSWORD || 'monetdb',
+    database: process.env.MAPI_DATABASE,
+    autoCommit: false,
+    replySize: 100,
+};
+
+const config: MapiConfig = {
+    ...defaults
+    database: 'test',
+    }
+const conn = new Connection(config);
+```
+### Using URL
+```ts
+const conn = new Connection('mapi:monetdb://<username>:<password>@<hostname>:<port>/<database>');
+```
+### Connection object
+```ts
+declare class Connection extends EventEmitter {
+    autoCommit?: boolean;
+    replySize?: number;
+    sizeHeader?: boolean;
+    mapi: MapiConnection;
+    constructor(params: MapiConfig | MAPI_URI);
+    connect(callback?: ConnectCallback): Promise<boolean>;
+    close(): Promise<boolean>;
+    commit(): Promise<any>;
+    private command;
+    execute(sql: string, stream?: boolean): Promise<any>;
+    prepare(sql: string): Promise<PrepareStatement>;
+    setAutocommit(v: boolean): Promise<boolean>;
+    setReplySize(v: number): Promise<number>;
+    setSizeHeader(v: boolean): Promise<boolean>;
+    setTimezone(sec: number): Promise<any>;
+    rollback(): Promise<any>;
+}
+```

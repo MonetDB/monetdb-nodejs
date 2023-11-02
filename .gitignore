@@ -3,3 +3,6 @@ node_modules
 dist
 .idea
 .vscode
+docs/dist
+docs/.next
+

@@ -1,0 +1,39 @@
+## Query Result
+The result object returned from sucessful query execution.
+```ts
+type QueryResult = {
+    id?: number;
+    type?: string;
+    queryId?: number;
+    rowCnt?: number;
+    affectedRows?: number;
+    columnCnt?: number;
+    queryTime?: number;
+    sqlOptimizerTime?: number;
+    malOptimizerTime?: number;
+    columns?: Column[];
+    headers?: ResponseHeaders;
+    data?: any[];
+};
+import { Connection } from 'monetdb';
+const conn = new Connection({database: 'test'});
+const ready = await conn.connect();
+const res: QueryResult = await conn.execute('select 1 as one, 2 as two');
+console.log(res);
+// {
+//   type: '&1',
+//   id: 1,
+//   rowCnt: 1,
+//   columnCnt: 2,
+//   queryId: 37,
+//   queryTime: 311,
+//   malOptimizerTime: 129,
+//   sqlOptimizerTime: 22,
+//   columns: [
+//     { table: '.', name: 'one', type: 'tinyint', index: 0 },
+//     { table: '.', name: 'two', type: 'tinyint', index: 1 }
+//   ],
+//   data: [ [ 1, 2 ] ]
+// }
+
+```

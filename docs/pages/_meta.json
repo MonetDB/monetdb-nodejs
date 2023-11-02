@@ -1,0 +1,16 @@
+{
+  "index": "Getting Started",
+  "apis": "API",
+  "example": "Examples",
+  "versions": {
+      "title": "archive",
+      "type": "menu",
+      "items": {
+          "v0": {
+              "title": "v0",
+              "href": "https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/v0"},
+          "v1": {
+              "title": "v1",
+              "href": "https://github.com/MonetDB/monetdb-nodejs/blob/master/docs/v1"}}
+  }
+}
