@@ -36,7 +36,7 @@ const conn = new Connection('mapi:monetdb://<username>:<password>@<hostname>:<po
     ...
     const closed: boolean = await conn.close();
 ```
-, for detailed api documentation please visit [documentation](docs/README.md).
+, for detailed api documentation please visit [documentation](https://monetdb.github.io/monetdb-nodejs/).
 ## Features
 - prepared statements
 - streaming query results
