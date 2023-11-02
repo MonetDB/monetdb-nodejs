@@ -1,16 +1,16 @@
-# monetdb-nodejs
+# MonetDB Node.js
 
 [![Linux](https://github.com/MonetDB/monetdb-nodejs/workflows/Linux/badge.svg)
 [![macOS](https://github.com/MonetDB/monetdb-nodejs/workflows/macos/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/MonetDB/monetdb-nodejs/badge.svg?branch=master&service=github)](https://coveralls.io/github/MonetDB/monetdb-nodejs?branch=master)
 [![npm version](https://badge.fury.io/js/monetdb.svg)](https://badge.fury.io/js/monetdb)
 
-MonetDB Node.js connector.
+Node.js connector for MonetDB.
 
 ## Getting Started
 
 ```bash
-npm i monetdb
+npm install monetdb
 ```
 , connect with default options
 
@@ -43,7 +43,7 @@ const conn = new Connection('mapi:monetdb://<username>:<password>@<hostname>:<po
 - bulk import & export with `COPY TO/COPY FROM`
 ## Contributing
 
-**:heart: contributions!**
+**We :heart: contributions!**
 
 We will **happily** accept your pull request if it:
 
