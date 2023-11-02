@@ -49,7 +49,7 @@ declare class Connection extends EventEmitter {
     close(): Promise<boolean>;
     commit(): Promise<any>;
     private command;
-    execute(sql: string, stream?: boolean): Promise<any>;
+    execute(sql: string, stream?: boolean): Promise<QueryResult|QueryStream>;
     prepare(sql: string): Promise<PrepareStatement>;
     setAutocommit(v: boolean): Promise<boolean>;
     setReplySize(v: number): Promise<number>;
