@@ -6,25 +6,23 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "mocha -r ts-node/register test/**/*.ts",
-    "coverage": "`npm bin`/istanbul cover `npm bin`/_mocha --report lcovonly -- -R spec Tests/test.js",
-    "coveralls": "npm run-script coverage && node node_modules/coveralls/bin/coveralls.js < coverage/lcov.info"
+    "test": "mocha -r ts-node/register test/**/*.ts"
   },
   "keywords": [
     "monetdb"
   ],
   "author": {
-    "name": "Robin Cijvat",
-    "email": "robin.cijvat@monetdbsolutions.com"
+    "name": "Svetlin Stalinov",
+    "email": "svetlin.stalinov@monetdbsolutions.com"
   },
   "contributors": [
     {
-      "name": "Hannes Mühleisen",
-      "email": "hannes@cwi.nl"
+      "name": "Robin Cijvat",
+      "email": "robin.cijvat@monetdbsolutions.com"
     },
     {
-      "name": "Svetlin Stalinov",
-      "email": "svetlin.stalinov@monetdbsolutions.com"
+      "name": "Hannes Mühleisen",
+      "email": "hannes@cwi.nl"
     }
   ],
   "repository": {

@@ -2,7 +2,6 @@
 
 [![Linux](https://github.com/MonetDB/monetdb-nodejs/workflows/Linux/badge.svg)
 [![macOS](https://github.com/MonetDB/monetdb-nodejs/workflows/macos/badge.svg)
-[![Coverage Status](https://coveralls.io/repos/MonetDB/monetdb-nodejs/badge.svg?branch=master&service=github)](https://coveralls.io/github/MonetDB/monetdb-nodejs?branch=master)
 [![npm version](https://badge.fury.io/js/monetdb.svg)](https://badge.fury.io/js/monetdb)
 
 Node.js connector for MonetDB.
