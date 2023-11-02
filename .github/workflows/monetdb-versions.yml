@@ -16,12 +16,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['18']
         monetdbversion:
           - "monetdb/dev-builds:Jan2022"
           - "monetdb/dev-builds:Sep2022"
           - "monetdb/dev-builds:Jun2023"
           - "monetdb/dev-builds:default"
+        node: ['18']
     services:
       monetdb:
         image: ${{ matrix.monetdbversion }}

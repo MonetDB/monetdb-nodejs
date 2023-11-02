@@ -5,6 +5,8 @@ import {
   parseMapiUri,
   createMapiConfig,
   HandShakeOption,
+  QueryResult,
+  QueryStream,
 } from "./mapi";
 import PrepareStatement from "./PrepareStatement";
 

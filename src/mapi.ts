@@ -1012,4 +1012,5 @@ export {
   createMapiConfig,
   HandShakeOption,
   QueryResult,
+  QueryStream,
 };
