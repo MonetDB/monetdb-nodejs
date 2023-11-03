@@ -20,7 +20,8 @@ line in a file using the modifier `OFFSET 2`, and load `n` records from the file
 	COPY 100 RECORDS OFFSET 2 INTO mytable FROM 'data.csv' ON CLIENT
 ```
 , for detailed documentation on `COPY INTO` statement please vist [MonetDB documentation](https://www.monetdb.org/documentation-Jun2023/user-guide/sql-manual/data-loading/)
-## Example
+## Examples
+### Upload from file
 Assume `data.csv` with the following content
 ```bash
 cat<<EOF>data.csv
@@ -29,7 +30,7 @@ cat<<EOF>data.csv
 3|three
 EOF
 ```
-, then load that into MonetDB
+, then upload that into MonetDB
 ```ts
 import {Connection} from 'monetdb';
 
@@ -40,4 +41,12 @@ let res = await conn.execute(`copy into foo from \'data.csv\' on client`);
 res = await conn.execute('select * from foo order by i');
 console.log(res.data);
 // [[1, 'one'], [2, 'two'], [3, 'three']]
+```
+### Download to file
+```ts
+// Download
+const ready = await conn.connect();
+let res = await conn.execute('copy (select * from sys.generate_series(1,1001)) into \'foo.csv\' on client');
+console.log(res.affectedRows);
+// 1000
 ```
