@@ -2,6 +2,7 @@
 
 ![Linux](https://github.com/MonetDB/monetdb-nodejs/workflows/Linux/badge.svg)
 ![macOS](https://github.com/MonetDB/monetdb-nodejs/workflows/macos/badge.svg)
+![MonetDB-dev-builds](https://github.com/MonetDB/monetdb-nodejs/workflows/monetdb-dev-builds/badge.svg)
 ![npm version](https://img.shields.io/npm/v/monetdb)
 
 Node.js connector for MonetDB.

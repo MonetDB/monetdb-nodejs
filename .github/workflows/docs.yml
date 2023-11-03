@@ -1,4 +1,4 @@
-name: Deploy docs site to Pages
+name: Docs
 
 on:
   # Runs on pushes targeting the default branch

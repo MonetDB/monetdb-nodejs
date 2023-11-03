@@ -1,7 +1,7 @@
-name: Test against various MonetDB versions
+name: monetdb-dev-builds
 on:
   push:
-    branches: [ master, ts ]
+    branches: [ master]
   pull_request:
 
   # Allows you to run this workflow manually from the Actions tab
