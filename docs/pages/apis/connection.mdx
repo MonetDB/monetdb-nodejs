@@ -24,7 +24,7 @@ const defaults = {
     password: process.env.MAPI_PASSWORD || 'monetdb',
     database: process.env.MAPI_DATABASE,
     autoCommit: false,
-    replySize: 100,
+    replySize: -1,
 };
 
 const config: MapiConfig = {

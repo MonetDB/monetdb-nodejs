@@ -1,0 +1,43 @@
+## File Transfer
+MonetDB supports the non-standard `COPY INTO` statement to load a CSV-like
+text file into a table or to dump a table into a text file. This statement has an
+optional modifier `ON CLIENT` to indicate that the server should not
+try to open the file on the server side but instead ask the client to open it
+on its behalf.
+
+For example::
+```sql
+	COPY INTO mytable FROM 'data.csv' ON CLIENT
+	USING DELIMITERS ',', E'\n', '"';
+```
+For security reason `monetdb-nodejs` enforces files to be realtive to the current
+working directory of the Node.js process.
+## Skip rows and early cancellation
+MonetDB's `COPY INTO` statement allows you to skip, for example, the first
+line in a file using the modifier `OFFSET 2`, and load `n` records from the file using
+`RECORDS` modifier.
+```sql
+	COPY 100 RECORDS OFFSET 2 INTO mytable FROM 'data.csv' ON CLIENT
+```
+, for detailed documentation on `COPY INTO` statement please vist [MonetDB documentation](https://www.monetdb.org/documentation-Jun2023/user-guide/sql-manual/data-loading/)
+## Example
+Assume `data.csv` with the following content
+```bash
+cat<<EOF>data.csv
+1|one
+2|two
+3|three
+EOF
+```
+, then load that into MonetDB
+```ts
+import {Connection} from 'monetdb';
+
+const conn = new Connection({database: 'test'});
+const ready = await conn.connect();
+await conn.execute('create table foo(i int, a varchar(10))');
+let res = await conn.execute(`copy into foo from \'data.csv\' on client`);
+res = await conn.execute('select * from foo order by i');
+console.log(res.data);
+// [[1, 'one'], [2, 'two'], [3, 'three']]
+```

@@ -39,7 +39,7 @@ const conn = new Connection('mapi:monetdb://<username>:<password>@<hostname>:<po
 ## Features
 - prepared statements
 - streaming query results
-- bulk import & export with `COPY TO/COPY FROM`
+- bulk import & export with `COPY INTO`
 ## Contributing
 
 **We :heart: contributions!**

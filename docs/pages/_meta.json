@@ -1,7 +1,9 @@
 {
   "index": "Getting Started",
+  "filetransfer": "File Transfer",
+  "result": "Query result",
+  "prepstmt": "Prepare Statement",
   "apis": "API",
-  "example": "Examples",
   "versions": {
       "title": "archive",
       "type": "menu",
