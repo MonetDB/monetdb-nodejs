@@ -20,6 +20,18 @@ describe("Exec queres", function () {
     assert.equal(res.data.length, 9);
   });
 
+  it("should respect replySize", async function () {
+    const ready = await conn.connect();
+    assert(ready, new Error("failed to connect"));
+    let res = await conn.execute("select * from generate_series(1, 1001)");
+    // default reply size
+    assert.equal(res.data.length, 1000);
+    await conn.setReplySize(10);
+    assert.equal(conn.replySize, 10);
+    res = await conn.execute("select * from generate_series(1, 1001)");
+    assert.equal(res.data.length, 10);
+  });
+
   it("should handle many queres", async function () {
     const ready = await conn.connect();
     assert(ready, new Error("failed to connect"));
