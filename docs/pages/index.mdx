@@ -10,10 +10,10 @@ $ npm install monetdb
 ```
 
 ## Usage
-The simplest way to connect is to use default connection options and pass only the database name.
+The simplest way to connect is to use the default `Connection` options and pass only the database name:
 
 ```js
-import { Connection} from 'monetdb'
+import {Connection} from 'monetdb'
 
 const opt = {database: 'test'}
 
@@ -23,5 +23,5 @@ const res = conn.execute('select 42');
 console.log(res.data)
 await conn.close();
 ```
-, see [connection api](/apis/connection) for more details.
+See [connection api](/apis/connection) for more details.
 

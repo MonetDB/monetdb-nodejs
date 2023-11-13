@@ -1,5 +1,5 @@
 ## Prepare Statement
-The PREPARE statement compiles an SQL statement into its execution plan on the server. This is useful for statements which need to be executed many times but with different values each time, such as an INSERT or UPDATE or SELECT query.
+A PREPARE statement compiles an SQL query into its execution plan on the server. This preparation is useful for statements which need to be executed many times but with different values each time, such as an INSERT, UPDATE or SELECT query.
 ```ts
 const ready = await conn.connect();
 let res = await conn.execute('create table foo(a int, b boolean, c string, d date, f decimal)');
@@ -8,6 +8,8 @@ res = await prepStmt.execute(1, true, 'first', '2022-12-12', 1.11);
 res = await prepStmt.execute(2, false, 'second', '2022-12-12', 2.22);
 res = await prepStmt.execute(3, true, 'third', '2022-12-12', 3.33);
 await prepStmt.release();
+res = await conn.execute('select * from foo');
+console.log(res);
 ```
-For more information on prepare statement please visit [MonetDB documentation](https://www.monetdb.org/documentation-Jun2023/user-guide/sql-manual/data-manipulation/prepare-statement/). 
+For more information on prepare statement, please visit [MonetDB documentation on prepare statement ](https://www.monetdb.org/documentation-Jun2023/user-guide/sql-manual/data-manipulation/prepare-statement/). 
 

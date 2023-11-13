@@ -1,7 +1,7 @@
 ## Query result size
-Query result size can be set with `replySize` `Connection` option. It defines the number of data rows returned in the initial response.
-By default this options is set to `-1`, which means fetch all the data. If `replySize` is set to any positive number, only that many
-data rows will be fetched, while the rest will stay cached at the server. The `replySize` can be set initially when connection is created, or by invoking `setReplySize` method on the `Connection` object.
+Query result size can be set with the `Connection` option `replySize`. It defines the number of data rows returned in the initial response.
+By default, this option is set to `-1`, which means fetching all the data. If `replySize` is set to a positive number, only that many
+data rows will be fetched, while the rest will stay cached at the server. The `replySize` can be set when connection is created or by invoking the `setReplySize` method on the `Connection` object.
 ```ts
 // set replySize to 100
 const conn = new Connection({database: 'test', replySize: 100});
@@ -15,27 +15,29 @@ console.log(res.data.length);
 // 1000
 ```
 ## Streaming query result
-When query result is quite large it's often useful to start process the data chunks as soon as they are available
-on the client. This can be achieved by invoking `execute` method on the `Connection` object with `stream=true`.
+When the query result is large, it's often useful to start processing the data chunks as soon as they are available
+on the client. This can be achieved by invoking the `execute` method on the `Connection` object with `stream=true`.
 ```ts
-//  execute(sql: string, stream?: boolean): Promise<any>;
+import { Connection } from 'monetdb'
+
+const conn = new Connection({database: 'test'})
 const ready = await conn.connect();
-const stream: QueryStream = await conn.execute('select * from generate_series(1, 10000)', true);
+const stream = await conn.execute('select * from generate_series(1, 10000)', true);
 const colInfo = [];
 const data = [];
-stream.on('header', (cols: any[]) => {
-    // do something with col info
+stream.on('header', (cols) => {
+    console.log(cols);
 });
 
-stream.on('data', (tuples: any[]) => {
+stream.on('data', (tuples) => {
     for (let t of tuples) {
         data.push(t);
     }
 });
 
 stream.on('end', () => {
-  // do something on end of streaming
+    console.log(data);
+    console.log('THE END')
+    conn.close();
 });
-
-await conn.close();
 ```
