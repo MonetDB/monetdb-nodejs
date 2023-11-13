@@ -10,19 +10,19 @@ For example::
 	COPY INTO mytable FROM 'data.csv' ON CLIENT
 	USING DELIMITERS ',', E'\n', '"';
 ```
-For security reason `monetdb-nodejs` enforces files to be realtive to the current
+For security reasons, `monetdb-nodejs` enforces files to be relative to the current
 working directory of the Node.js process.
 ## Skip rows and early cancellation
 MonetDB's `COPY INTO` statement allows you to skip, for example, the first
-line in a file using the modifier `OFFSET 2`, and load `n` records from the file using
-`RECORDS` modifier.
+line in a file using the modifier `OFFSET 2` and load `n` records from the file using
+the `RECORDS` modifier.
 ```sql
 	COPY 100 RECORDS OFFSET 2 INTO mytable FROM 'data.csv' ON CLIENT
 ```
-, for detailed documentation on `COPY INTO` statement please vist [MonetDB documentation](https://www.monetdb.org/documentation-Jun2023/user-guide/sql-manual/data-loading/)
+For detailed documentation on `COPY INTO` statement, please vist [MonetDB documentation on data import and export](https://www.monetdb.org/documentation-Jun2023/user-guide/sql-manual/data-loading/).
 ## Examples
-### Upload from file
-Assume `data.csv` with the following content
+### Upload data from file
+Assume `data.csv` with the following content:
 ```bash
 cat<<EOF>data.csv
 1|one
@@ -30,7 +30,7 @@ cat<<EOF>data.csv
 3|three
 EOF
 ```
-, then upload that into MonetDB
+One can upload this file into MonetDB using:
 ```ts
 import {Connection} from 'monetdb';
 
@@ -42,7 +42,7 @@ res = await conn.execute('select * from foo order by i');
 console.log(res.data);
 // [[1, 'one'], [2, 'two'], [3, 'three']]
 ```
-### Download to file
+### Download data to file
 ```ts
 // Download
 const ready = await conn.connect();
