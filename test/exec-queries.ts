@@ -109,4 +109,59 @@ describe("Exec queres", function () {
     const res = await conn.execute(qry);
     assert.strictEqual(res.rowCnt, 1);
   });
+
+  it("should handle select * query on table with many columns", async function () {
+    this.timeout(5000);
+    const ready = await conn.connect();
+    assert(ready, new Error("failed to connect"));
+    const columns = [];
+    const lookup = {};
+    const generateColName = (length: Number) => {
+      let result = "";
+      const characters =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      for (let i = 0; i < length; i++) {
+        result += characters.charAt(
+          Math.floor(Math.random() * characters.length)
+        );
+      }
+      return result;
+    };
+    const colTypes = ["int", "varchar(10)", "double"];
+    let count = 300;
+    while (count) {
+      const colType = colTypes[count % colTypes.length];
+      const colName = generateColName(6);
+      if (lookup.hasOwnProperty(colName)) {
+        continue;
+      } else {
+        columns.push(`"${generateColName(6)}" ${colType}`);
+        lookup[colName] = colType;
+        count--;
+      }
+    }
+    let stmt = "create table foo(" + columns.join() + ")";
+    let res = await conn.execute(stmt);
+    const generateValue = (colType: String) => {
+      if (colType === "int") return Math.floor(Math.random() * 100);
+      if (colType === "double") return Math.random() * 100;
+      if (colType === "date") return `'${new Date().toISOString()}'`;
+      return "'foo'";
+    };
+    // insert some data
+    const values = [];
+    for (let i = 0; i < 100; i++) {
+      const row = [];
+      for (let col of columns) {
+        const [colName, colType] = col.split(" ");
+        row.push(generateValue(colType));
+      }
+      values.push(`(${row.join()})`);
+    }
+    stmt = `insert into foo values ${values.join()}`;
+    res = await conn.execute(stmt);
+    res = await conn.execute("select * from foo");
+    assert.strictEqual(res.columnCnt, 300);
+    assert.strictEqual(res.rowCnt, 100);
+  });
 });
