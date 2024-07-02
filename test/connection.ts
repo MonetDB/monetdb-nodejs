@@ -5,6 +5,7 @@ describe("Connection", function () {
   let conn: Connection;
 
   it("should connect with default opt", async function () {
+    this.timeout(5000);
     conn = new Connection({ database: "test" });
     const ready = await conn.connect();
     assert(ready, new Error("failed to connect"));
