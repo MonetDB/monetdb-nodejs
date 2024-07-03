@@ -341,6 +341,7 @@ class Response {
   parseOffset: number;
   stream: boolean;
   settled: boolean;
+  headerEmitted: boolean;
   segments: Segment[];
   result?: QueryResult;
   callbacks: ResponseCallbacks;
@@ -354,6 +355,7 @@ class Response {
     this.parseOffset = 0;
     this.segments = [];
     this.settled = false;
+    this.headerEmitted = false;
     this.stream = opt.stream;
     this.callbacks = opt.callbacks;
     this.fileHandler = opt.fileHandler;
@@ -410,13 +412,21 @@ class Response {
       }
       if (this.isQueryResponse()) {
         const tuples = [];
-        const firstPackage = this.parseOffset === 0;
-        this.parseOffset += this.parse(this.toString(this.parseOffset), tuples);
+        // const firstPackage = this.parseOffset === 0;
+        this.parseOffset += this.parseQueryResponse(
+          this.toString(this.parseOffset),
+          tuples
+        );
         if (tuples.length > 0) {
           if (this.queryStream) {
             // emit header once
-            if (firstPackage && this.result && this.result.columns) {
+            if (
+              this.headerEmitted === false &&
+              this.result &&
+              this.result.columns
+            ) {
               this.queryStream.emit("header", this.result.columns);
+              this.headerEmitted = true;
             }
             // emit tuples
             this.queryStream.emit("data", tuples);
@@ -536,122 +546,102 @@ class Response {
     }
   }
 
-  parse(data: string, res: any[]): number {
+  parseQueryResponse(data: string, res: any[]): number {
     let offset = 0;
-    const lines = data.split("\n").length;
-    if (this.isQueryResponse()) {
-      let eol = data.indexOf("\n");
-      this.result = this.result || {};
-      if (
-        this.result.type === undefined &&
-        data.startsWith(MSG_Q) &&
-        lines > 0
-      ) {
-        // process 1st line
-        const line = data.substring(0, eol);
-        this.result.type = line.substring(0, 2);
-        const rest = line.substring(3).trim().split(" ");
-        if (this.result.type === MSG_QTABLE) {
-          const [
-            id,
-            rowCnt,
-            columnCnt,
-            rows,
-            queryId,
-            queryTime,
-            malOptimizerTime,
-            sqlOptimizerTime,
-          ] = rest;
-          this.result.id = parseInt(id);
-          this.result.rowCnt = parseInt(rowCnt);
-          this.result.columnCnt = parseInt(columnCnt);
-          this.result.queryId = parseInt(queryId);
-          this.result.queryTime = parseInt(queryTime);
-          this.result.malOptimizerTime = parseInt(malOptimizerTime);
-          this.result.sqlOptimizerTime = parseInt(sqlOptimizerTime);
-        } else if (this.result.type === MSG_QUPDATE) {
-          const [
-            affectedRowCnt,
-            autoIncrementId,
-            queryId,
-            queryTime,
-            malOptimizerTime,
-            sqlOptimizerTime,
-          ] = rest;
-          this.result.affectedRows = parseInt(affectedRowCnt);
-          this.result.queryId = parseInt(queryId);
-          this.result.queryTime = parseInt(queryTime);
-          this.result.malOptimizerTime = parseInt(malOptimizerTime);
-          this.result.sqlOptimizerTime = parseInt(sqlOptimizerTime);
-        } else if (this.result.type === MSG_QSCHEMA) {
-          const [queryTime, malOptimizerTime] = rest;
-          this.result.queryTime = parseInt(queryTime);
-          this.result.malOptimizerTime = parseInt(malOptimizerTime);
-        } else if (this.result.type === MSG_QTRANS) {
-          // skip
-        } else if (this.result.type === MSG_QPREPARE) {
-          const [id, rowCnt, columnCnt, rows] = rest;
-          this.result.id = parseInt(id);
-          this.result.rowCnt = parseInt(rowCnt);
-          this.result.columnCnt = parseInt(columnCnt);
-        }
-        // end 1st line
-
-        if (
-          this.headers === undefined &&
-          data.charAt(eol + 1) === MSG_HEADER &&
-          lines > 5
-        ) {
-          let headers: ResponseHeaders = {};
-          while (data.charAt(eol + 1) === MSG_HEADER) {
-            const hs = eol + 1;
-            eol = data.indexOf("\n", hs);
-            headers = {
-              ...headers,
-              ...parseHeaderLine(data.substring(hs, eol)),
-            };
+    let eol = data.indexOf("\n");
+    let line = eol > 0 ? data.substring(0, eol) : undefined;
+    while (line) {
+      switch (line.charAt(0)) {
+        case MSG_Q:
+          // first line
+          this.result = this.result || {};
+          this.result.type = line.substring(0, 2);
+          const rest = line.substring(3).trim().split(" ");
+          if (this.result.type === MSG_QTABLE) {
+            const [
+              id,
+              rowCnt,
+              columnCnt,
+              rows,
+              queryId,
+              queryTime,
+              malOptimizerTime,
+              sqlOptimizerTime,
+            ] = rest;
+            this.result.id = parseInt(id);
+            this.result.rowCnt = parseInt(rowCnt);
+            this.result.columnCnt = parseInt(columnCnt);
+            this.result.queryId = parseInt(queryId);
+            this.result.queryTime = parseInt(queryTime);
+            this.result.malOptimizerTime = parseInt(malOptimizerTime);
+            this.result.sqlOptimizerTime = parseInt(sqlOptimizerTime);
+          } else if (this.result.type === MSG_QUPDATE) {
+            const [
+              affectedRowCnt,
+              autoIncrementId,
+              queryId,
+              queryTime,
+              malOptimizerTime,
+              sqlOptimizerTime,
+            ] = rest;
+            this.result.affectedRows = parseInt(affectedRowCnt);
+            this.result.queryId = parseInt(queryId);
+            this.result.queryTime = parseInt(queryTime);
+            this.result.malOptimizerTime = parseInt(malOptimizerTime);
+            this.result.sqlOptimizerTime = parseInt(sqlOptimizerTime);
+          } else if (this.result.type === MSG_QSCHEMA) {
+            const [queryTime, malOptimizerTime] = rest;
+            this.result.queryTime = parseInt(queryTime);
+            this.result.malOptimizerTime = parseInt(malOptimizerTime);
+          } else if (this.result.type === MSG_QTRANS) {
+            // skip
+          } else if (this.result.type === MSG_QPREPARE) {
+            const [id, rowCnt, columnCnt, rows] = rest;
+            this.result.id = parseInt(id);
+            this.result.rowCnt = parseInt(rowCnt);
+            this.result.columnCnt = parseInt(columnCnt);
           }
-          this.headers = headers;
-          const colums: Column[] = [];
-          for (let i = 0; i < this.result.columnCnt; i++) {
-            const table = headers.tableNames && headers.tableNames[i];
-            const name = headers.columnNames && headers.columnNames[i];
-            const type = headers.columnTypes && headers.columnTypes[i];
-            colums.push({
-              table,
-              name,
-              type,
-              index: i,
-            });
-          }
-          this.result.columns = colums;
-        }
-      }
-      offset = eol + 1;
-      let ts: number = undefined; // tuple index
-      if (data.startsWith(MSG_TUPLE)) {
-        ts = 0;
-      } else if (data.charAt(eol + 1) === MSG_TUPLE) {
-        ts = eol + 1;
-        eol = data.indexOf("\n", ts);
-      }
-      if (ts !== undefined && eol > 0) {
-        // we have a data row
-        do {
-          offset = eol + 1;
-          const tuple = parseTupleLine(
-            data.substring(ts, eol),
-            this.headers.columnTypes
-          );
-          res.push(tuple);
-          if (data.charAt(eol + 1) === MSG_TUPLE) {
-            ts = eol + 1;
-            eol = data.indexOf("\n", ts);
+          break;
+        case MSG_HEADER:
+          const header = parseHeaderLine(line);
+          if (this.result.headers !== undefined) {
+            this.result.headers = { ...this.result.headers, ...header };
           } else {
-            ts = undefined;
+            this.result.headers = header;
           }
-        } while (ts && eol > -1);
+          // if we have all headers we can compile column info
+          const haveAllHeaders =
+            Boolean(this.result.headers.tableNames) &&
+            Boolean(this.result.headers.columnNames) &&
+            Boolean(this.result.headers.columnTypes);
+          if (this.result.columns === undefined && haveAllHeaders) {
+            const colums: Column[] = [];
+            for (let i = 0; i < this.result.columnCnt; i++) {
+              const table = this.result.headers.tableNames[i];
+              const name = this.result.headers.columnNames[i];
+              const type = this.result.headers.columnTypes[i];
+              colums.push({
+                table,
+                name,
+                type,
+                index: i,
+              });
+            }
+            this.result.columns = colums;
+          }
+          break;
+        case MSG_TUPLE:
+          const tuple = parseTupleLine(line, this.result.headers.columnTypes);
+          res.push(tuple);
+          break;
+        default:
+          throw TypeError(`Invalid query response line!\n${line}`);
       }
+      // line is processed advance offset
+      offset = eol + 1;
+      // get next line
+      eol = data.indexOf("\n", offset);
+      line = eol > 0 ? data.substring(offset, eol) : undefined;
     }
     return offset;
   }
