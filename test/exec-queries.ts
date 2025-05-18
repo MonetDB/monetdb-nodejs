@@ -1,7 +1,7 @@
 import assert from "assert";
 import Connection from "../src/connection";
 
-describe("Exec queres", function () {
+describe("Exec queries", function () {
   let conn: Connection;
   beforeEach(function () {
     conn = new Connection({ database: "test" });

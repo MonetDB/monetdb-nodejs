@@ -376,8 +376,9 @@ class Response {
     if (!this.complete()) {
       // check if out of space
       if (this.buff.length - this.offset < data.length) {
-        const bytes = this.expand(MAPI_BLOCK_SIZE);
-        console.log(`expanding by ${bytes} bytes!`);
+        const nsize = (data.length + MAPI_BLOCK_SIZE)&~MAPI_BLOCK_SIZE;
+        const bytes = this.expand(nsize);
+        //console.log(`expanding by ${bytes} bytes!`);
       }
 
       if (segment === undefined || (segment && segment.isFull())) {
@@ -473,7 +474,7 @@ class Response {
         this.offset -= offset;
       }
     }
-    const buff = Buffer.allocUnsafe(this.buff.length + byteCount).fill(0);
+    const buff = Buffer.allocUnsafe(this.buff.length + byteCount);
     const bytesCopied = this.buff.copy(buff);
     this.buff = buff;
     // should be byteCount
@@ -716,7 +717,7 @@ class MapiConnection extends EventEmitter {
     socket.addListener("error", this.handleSocketError.bind(this));
     socket.addListener("timeout", this.handleTimeout.bind(this));
     socket.addListener("close", () => {
-      console.log("socket close event");
+      //console.log("socket close event");
       this.emit("end");
     });
     return socket;
@@ -916,8 +917,8 @@ class MapiConnection extends EventEmitter {
     if (resp.complete()) this.handleResponse(resp);
     bytesLeftOver = data.length - offset;
     if (bytesLeftOver) {
-      const msg = `some ${bytesLeftOver} bytes left over!`;
-      console.warn(msg);
+      //const msg = `some ${bytesLeftOver} bytes left over!`;
+      //console.warn(msg);
       this.recv(data.subarray(offset));
     }
   }
@@ -939,7 +940,7 @@ class MapiConnection extends EventEmitter {
         return;
       }
       if (resp.isPrompt()) {
-        console.log("login OK");
+        //console.log("login OK");
         this.state = MAPI_STATE.READY;
         this.emit("ready", this.state);
         return;
@@ -948,7 +949,7 @@ class MapiConnection extends EventEmitter {
     }
 
     if (resp.isFileTransfer()) {
-      console.log("file transfer");
+      //console.log("file transfer");
       let fhandler: any;
       const msg = resp.toString(MSG_FILETRANS.length).trim();
       let mode: string, offset: string, file: string;
