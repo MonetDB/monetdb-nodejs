@@ -523,6 +523,8 @@ class Response {
                 }
             }
             this.settled = true;
+            this._str = "";
+            this.chunks = [];
         }
     }
 
@@ -1013,6 +1015,7 @@ class MapiConnection extends EventEmitter {
             );
             resp.result.data = data;
         }
+
         resp.settle();
     }
 }
