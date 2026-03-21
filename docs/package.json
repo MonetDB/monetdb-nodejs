@@ -13,7 +13,7 @@
     "email": "svetlin.stalinov@monetdbsolutions.com"
   },
   "dependencies": {
-    "next": "^14.0.1",
+    "next": "^16.2.1",
     "nextra": "^3.2.4",
     "nextra-theme-docs": "^3.2.4",
     "react": "^18.2.0",
